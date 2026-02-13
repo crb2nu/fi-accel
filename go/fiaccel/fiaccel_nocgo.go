@@ -1,0 +1,139 @@
+//go:build !cgo
+
+package fiaccel
+
+import "math"
+
+// Available reports whether the native fi-accel library is linked.
+func Available() bool { return false }
+
+// --- Tokenizer fallback (pure Go, ~4 chars per token estimate) ---
+
+type fallbackTokenizer struct {
+	model string
+}
+
+func newTokenizer(model string) (Tokenizer, error) {
+	return &fallbackTokenizer{model: model}, nil
+}
+
+func (t *fallbackTokenizer) Count(text string) (int, error) {
+	// Rough approximation: ~4 chars per token for English text
+	n := len(text) / 4
+	if n == 0 && len(text) > 0 {
+		n = 1
+	}
+	return n, nil
+}
+
+func (t *fallbackTokenizer) Encode(_ string) ([]uint32, error) {
+	return nil, ErrNotAvailable
+}
+
+func (t *fallbackTokenizer) Decode(_ []uint32) (string, error) {
+	return "", ErrNotAvailable
+}
+
+func (t *fallbackTokenizer) Truncate(text string, maxTokens int) (string, error) {
+	maxChars := maxTokens * 4
+	if len(text) <= maxChars {
+		return text, nil
+	}
+	// Truncate at rune boundary
+	runes := []rune(text)
+	if len(runes) > maxChars {
+		runes = runes[:maxChars]
+	}
+	return string(runes), nil
+}
+
+func (t *fallbackTokenizer) Close() {}
+
+// --- Embedding fallback (pure Go) ---
+
+func cosineSimilarity(a, b []float32) (float32, error) {
+	if len(a) != len(b) {
+		return 0, &Error{Code: ErrInvalidArg, Message: "vectors must have same length"}
+	}
+
+	var dot, normA, normB float64
+	for i := range a {
+		dot += float64(a[i]) * float64(b[i])
+		normA += float64(a[i]) * float64(a[i])
+		normB += float64(b[i]) * float64(b[i])
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0, nil
+	}
+
+	return float32(dot / (math.Sqrt(normA) * math.Sqrt(normB))), nil
+}
+
+func dotProduct(a, b []float32) (float32, error) {
+	if len(a) != len(b) {
+		return 0, &Error{Code: ErrInvalidArg, Message: "vectors must have same length"}
+	}
+
+	var sum float64
+	for i := range a {
+		sum += float64(a[i]) * float64(b[i])
+	}
+	return float32(sum), nil
+}
+
+func normalizeL2(v []float32) error {
+	var normSq float64
+	for _, x := range v {
+		normSq += float64(x) * float64(x)
+	}
+	if normSq > 0 {
+		norm := float32(math.Sqrt(normSq))
+		for i := range v {
+			v[i] /= norm
+		}
+	}
+	return nil
+}
+
+func topKSimilar(query []float32, candidates [][]float32, k int) ([]TopKEntry, error) {
+	if len(query) == 0 || len(candidates) == 0 {
+		return nil, nil
+	}
+
+	type scored struct {
+		idx   int
+		score float32
+	}
+
+	scores := make([]scored, len(candidates))
+	for i, c := range candidates {
+		sim, err := cosineSimilarity(query, c)
+		if err != nil {
+			return nil, err
+		}
+		scores[i] = scored{idx: i, score: sim}
+	}
+
+	// Simple selection sort for top-k (good enough for small k)
+	for i := 0; i < k && i < len(scores); i++ {
+		maxIdx := i
+		for j := i + 1; j < len(scores); j++ {
+			if scores[j].score > scores[maxIdx].score {
+				maxIdx = j
+			}
+		}
+		scores[i], scores[maxIdx] = scores[maxIdx], scores[i]
+	}
+
+	n := k
+	if n > len(scores) {
+		n = len(scores)
+	}
+
+	result := make([]TopKEntry, n)
+	for i := 0; i < n; i++ {
+		result[i] = TopKEntry{Index: scores[i].idx, Score: scores[i].score}
+	}
+	return result, nil
+}

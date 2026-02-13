@@ -1,0 +1,354 @@
+//! WASM bindings for fi-accel
+//!
+//! Exposes high-performance Rust implementations to JavaScript via wasm-bindgen.
+
+use fi_accel_core::{chunker, diff, embedding, json, log, toml, toon};
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
+
+// ============================================================================
+// Embedding Module
+// ============================================================================
+
+/// Normalize vectors to unit length (L2 normalization)
+#[wasm_bindgen]
+pub fn normalize_l2(embeddings: Vec<f32>, dimensions: usize) -> Vec<f32> {
+    // Convert flat array to Vec<Vec<f32>>
+    let mut vectors: Vec<Vec<f32>> = embeddings.chunks(dimensions).map(|c| c.to_vec()).collect();
+
+    embedding::normalize_l2(&mut vectors);
+
+    // Flatten back
+    vectors.into_iter().flatten().collect()
+}
+
+/// Compute cosine similarity between two vectors
+#[wasm_bindgen]
+pub fn cosine_similarity(a: Vec<f32>, b: Vec<f32>) -> f32 {
+    embedding::cosine_similarity(&a, &b)
+}
+
+/// Compute cosine similarity matrix (flattened)
+/// Input: two flat arrays with vectors of `dimensions` each
+/// Output: flat array of size (a_count * b_count)
+#[wasm_bindgen]
+pub fn cosine_similarity_matrix_flat(a: Vec<f32>, b: Vec<f32>, dimensions: usize) -> Vec<f32> {
+    let a_vecs: Vec<Vec<f32>> = a.chunks(dimensions).map(|c| c.to_vec()).collect();
+    let b_vecs: Vec<Vec<f32>> = b.chunks(dimensions).map(|c| c.to_vec()).collect();
+
+    let matrix = embedding::cosine_similarity_matrix(&a_vecs, &b_vecs);
+
+    // Flatten the result
+    matrix.into_iter().flatten().collect()
+}
+
+/// Compute dot product of two vectors
+#[wasm_bindgen]
+pub fn dot_product(a: Vec<f32>, b: Vec<f32>) -> f32 {
+    embedding::dot_product(&a, &b)
+}
+
+// ============================================================================
+// Diff Module
+// ============================================================================
+
+/// Result of fuzzy patch application
+#[derive(Serialize, Deserialize)]
+pub struct WasmPatchResult {
+    pub content: String,
+    pub applied: usize,
+    pub fuzzy_applied: usize,
+    pub failed: usize,
+}
+
+/// Apply a fuzzy patch to a file
+#[wasm_bindgen]
+pub fn apply_fuzzy_patch(patch: &str, file: &str, threshold: f32) -> Result<JsValue, JsValue> {
+    let matcher = diff::FuzzyMatcher::new(threshold);
+
+    let result = matcher
+        .apply_patch(patch, file)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let wasm_result = WasmPatchResult {
+        content: result.content,
+        applied: result.applied,
+        fuzzy_applied: result.fuzzy_applied,
+        failed: result.failed,
+    };
+
+    serde_wasm_bindgen::to_value(&wasm_result).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Compute string similarity using edit distance
+#[wasm_bindgen]
+pub fn string_similarity(a: &str, b: &str) -> f32 {
+    let matcher = diff::FuzzyMatcher::default();
+    matcher.similarity(a, b)
+}
+
+// ============================================================================
+// Log Module
+// ============================================================================
+
+/// WASM-friendly log reader
+#[wasm_bindgen]
+pub struct WasmLogReader {
+    inner: log::LogReader,
+}
+
+#[wasm_bindgen]
+impl WasmLogReader {
+    /// Create a new log reader from initial content
+    #[wasm_bindgen(constructor)]
+    pub fn new(content: &str) -> Self {
+        Self {
+            inner: log::LogReader::new(content),
+        }
+    }
+
+    /// Create an empty log reader
+    pub fn empty() -> Self {
+        Self {
+            inner: log::LogReader::empty(),
+        }
+    }
+
+    /// Append new content and return new lines as JSON array
+    pub fn append(&mut self, content: &str) -> Vec<String> {
+        self.inner.append(content)
+    }
+
+    /// Get the last n lines
+    pub fn tail(&self, n: usize) -> Vec<String> {
+        self.inner.tail(n)
+    }
+
+    /// Filter lines by pattern (regex)
+    pub fn filter(&self, pattern: &str) -> Vec<String> {
+        self.inner.filter(pattern)
+    }
+
+    /// Search for lines containing substring, returns JSON array of [lineNum, content]
+    pub fn search(&self, substring: &str) -> JsValue {
+        let results = self.inner.search(substring);
+        serde_wasm_bindgen::to_value(&results).unwrap_or(JsValue::NULL)
+    }
+
+    /// Get lines around a specific line number
+    pub fn context(&self, line_num: usize, before: usize, after: usize) -> Vec<String> {
+        self.inner.context(line_num, before, after)
+    }
+
+    /// Get total line count
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Check if empty
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Get all lines
+    pub fn all_lines(&self) -> Vec<String> {
+        self.inner.all_lines().to_vec()
+    }
+}
+
+// ============================================================================
+// JSON Module
+// ============================================================================
+
+/// Parse newline-delimited JSON (NDJSON)
+#[wasm_bindgen]
+pub fn parse_ndjson(data: &[u8]) -> JsValue {
+    let values = json::parse_ndjson(data);
+    serde_wasm_bindgen::to_value(&values).unwrap_or(JsValue::NULL)
+}
+
+/// Parse NDJSON from string
+#[wasm_bindgen]
+pub fn parse_ndjson_str(data: &str) -> JsValue {
+    parse_ndjson(data.as_bytes())
+}
+
+/// JSON-RPC message structure for WASM
+#[derive(Serialize, Deserialize)]
+pub struct WasmJsonRpcMessage {
+    pub jsonrpc: String,
+    pub id: Option<serde_json::Value>,
+    pub method: Option<String>,
+    pub params: Option<serde_json::Value>,
+    pub result: Option<serde_json::Value>,
+    pub error: Option<WasmJsonRpcError>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WasmJsonRpcError {
+    pub code: i32,
+    pub message: String,
+}
+
+/// Parse JSON-RPC messages from NDJSON
+#[wasm_bindgen]
+pub fn parse_jsonrpc_batch(data: &[u8]) -> JsValue {
+    let messages: Vec<WasmJsonRpcMessage> = json::parse_jsonrpc_batch(data)
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .map(|msg| WasmJsonRpcMessage {
+            jsonrpc: msg.jsonrpc,
+            id: msg.id,
+            method: msg.method,
+            params: msg.params,
+            result: msg.result,
+            error: msg.error.map(|e| WasmJsonRpcError {
+                code: e.code,
+                message: e.message,
+            }),
+        })
+        .collect();
+
+    serde_wasm_bindgen::to_value(&messages).unwrap_or(JsValue::NULL)
+}
+
+/// Parse JSON-RPC messages from string
+#[wasm_bindgen]
+pub fn parse_jsonrpc_batch_str(data: &str) -> JsValue {
+    parse_jsonrpc_batch(data.as_bytes())
+}
+
+// ============================================================================
+// TOML Module
+// ============================================================================
+
+/// Parse TOML string and return as JavaScript object
+#[wasm_bindgen]
+pub fn parse_toml(toml_str: &str) -> Result<JsValue, JsValue> {
+    let json_value = toml::parse_toml(toml_str)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    serde_wasm_bindgen::to_value(&json_value)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Validate TOML syntax without fully parsing
+#[wasm_bindgen]
+pub fn validate_toml(toml_str: &str) -> Result<bool, JsValue> {
+    toml::validate_toml(toml_str)
+        .map(|_| true)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Convert a JavaScript object to TOML string
+#[wasm_bindgen]
+pub fn json_to_toml(obj: JsValue) -> Result<String, JsValue> {
+    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    toml::json_to_toml(&json_value)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Merge two TOML strings, with overlay values taking precedence
+#[wasm_bindgen]
+pub fn merge_toml(base: &str, overlay: &str) -> Result<JsValue, JsValue> {
+    let merged = toml::merge_toml(base, overlay)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    serde_wasm_bindgen::to_value(&merged)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+// ============================================================================
+// TOON Module
+// ============================================================================
+
+/// Parse TOON string and return as JavaScript object
+#[wasm_bindgen]
+pub fn parse_toon(toon_str: &str) -> Result<JsValue, JsValue> {
+    let json_value = toon::parse_toon(toon_str)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    serde_wasm_bindgen::to_value(&json_value)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Convert a JavaScript object to TOON string
+#[wasm_bindgen]
+pub fn to_toon(obj: JsValue) -> Result<String, JsValue> {
+    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    Ok(toon::to_toon(&json_value))
+}
+
+/// Validate TOON syntax without fully parsing
+#[wasm_bindgen]
+pub fn validate_toon(toon_str: &str) -> Result<bool, JsValue> {
+    toon::validate_toon(toon_str)
+        .map(|_| true)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Convert JSON value to TOON string
+#[wasm_bindgen]
+pub fn json_to_toon(obj: JsValue) -> Result<String, JsValue> {
+    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    Ok(toon::json_to_toon(&json_value))
+}
+
+// ============================================================================
+// Chunker Module (markdown + text only, no tree-sitter in WASM)
+// ============================================================================
+
+/// Chunk markdown content at heading boundaries
+#[wasm_bindgen]
+pub fn chunk_markdown(content: &str, max_tokens: Option<usize>) -> Result<JsValue, JsValue> {
+    let config = chunker::ChunkConfig {
+        max_tokens: max_tokens.unwrap_or(512),
+        ..chunker::ChunkConfig::default()
+    };
+
+    let chunks = chunker::chunk_markdown(content, &config)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    serde_wasm_bindgen::to_value(&chunks)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Chunk plain text by paragraphs and sentences
+#[wasm_bindgen]
+pub fn chunk_text(content: &str, max_tokens: Option<usize>) -> Result<JsValue, JsValue> {
+    let config = chunker::ChunkConfig {
+        max_tokens: max_tokens.unwrap_or(512),
+        ..chunker::ChunkConfig::default()
+    };
+
+    let chunks = chunker::chunk_text(content, &config);
+
+    serde_wasm_bindgen::to_value(&chunks)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Detect content type from file path
+#[wasm_bindgen]
+pub fn detect_content_type(file_path: &str) -> String {
+    match chunker::detect_content_type(file_path) {
+        chunker::ContentType::Code(lang) => format!("code:{}", lang.as_str()),
+        chunker::ContentType::Markdown => "markdown".to_string(),
+        chunker::ContentType::PlainText => "text".to_string(),
+    }
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/// Get version information
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}

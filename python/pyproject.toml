@@ -1,0 +1,40 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "fi-accel"
+version = "0.1.0"
+description = "High-performance acceleration library for agent/MCP workflows"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Cody Blevins" }]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Libraries",
+]
+keywords = ["tokenizer", "embeddings", "llm", "mcp", "rust", "acceleration"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-benchmark"]
+
+[project.urls]
+Repository = "https://gitlab.flexinfer.ai/libs/fi-accel"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+manifest-path = "../crates/fi-accel-py/Cargo.toml"
+python-source = "."
+module-name = "fi_accel"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

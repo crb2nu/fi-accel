@@ -1,0 +1,47 @@
+//! fi-accel-core: High-performance acceleration for agent/MCP workflows
+//!
+//! This crate provides optimized implementations for common operations in
+//! LLM-based agent systems:
+//!
+//! - **tokenizer**: Fast token counting, truncation, and splitting
+//! - **embedding**: SIMD-accelerated vector operations
+//! - **diff**: Fuzzy patch matching and application
+//! - **log**: Efficient log streaming and filtering
+//! - **json**: SIMD-accelerated JSON parsing
+//! - **toml**: Fast TOML parsing and conversion
+//! - **toon**: TOON (Token Oriented Object Notation) parsing
+//! - **chunker**: Syntax-aware content chunking (code, markdown, text)
+
+pub mod diff;
+pub mod embedding;
+pub mod json;
+pub mod log;
+pub mod toml;
+pub mod toon;
+
+#[cfg(feature = "tokenizer")]
+pub mod tokenizer;
+
+#[cfg(any(feature = "chunker", feature = "chunker-base"))]
+pub mod chunker;
+
+// Re-export commonly used types
+pub use diff::{DiffError, FuzzyMatcher, PatchResult};
+pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
+pub use json::parse_ndjson;
+pub use log::LogReader;
+pub use toml::{parse_toml, validate_toml, json_to_toml, merge_toml};
+pub use toon::{parse_toon, to_toon, validate_toon, json_to_toon};
+
+#[cfg(feature = "tokenizer")]
+pub use tokenizer::{count_tokens, split_by_tokens, truncate_to_tokens, Tokenizer};
+
+#[cfg(any(feature = "chunker", feature = "chunker-base"))]
+pub use chunker::{
+    chunk, chunk_markdown, chunk_text, detect_content_type, Chunk, ChunkConfig, ChunkKind,
+    ChunkerError, ContentType, Language,
+};
+
+// FFI exports for C/Go integration
+#[cfg(feature = "ffi")]
+pub mod ffi;

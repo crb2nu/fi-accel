@@ -1,0 +1,55 @@
+[package]
+name = "fi-accel-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "High-performance acceleration library for agent/MCP workflows"
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[dependencies]
+tiktoken-rs = { workspace = true, optional = true }
+simd-json = { workspace = true, optional = true }
+toml = { workspace = true }
+similar = { workspace = true }
+rayon = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+# Optional chunking dependencies
+tree-sitter = { workspace = true, optional = true }
+pulldown-cmark = { workspace = true, optional = true }
+tree-sitter-python = { workspace = true, optional = true }
+tree-sitter-go = { workspace = true, optional = true }
+tree-sitter-typescript = { workspace = true, optional = true }
+tree-sitter-javascript = { workspace = true, optional = true }
+tree-sitter-rust = { workspace = true, optional = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[features]
+default = ["tokenizer", "simd"]
+tokenizer = ["tiktoken-rs"]
+simd = ["simd-json"]
+chunker-base = ["pulldown-cmark"]
+chunker = [
+    "chunker-base",
+    "tree-sitter",
+    "tree-sitter-python",
+    "tree-sitter-go",
+    "tree-sitter-typescript",
+    "tree-sitter-javascript",
+    "tree-sitter-rust",
+]
+ffi = []  # Enable C FFI exports
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "benchmarks"
+harness = false

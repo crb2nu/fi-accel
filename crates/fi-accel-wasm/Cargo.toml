@@ -1,0 +1,24 @@
+[package]
+name = "fi-accel-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WASM bindings for fi-accel acceleration library"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fi-accel-core = { path = "../fi-accel-core", default-features = false, features = ["simd", "chunker-base"] }
+wasm-bindgen = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+pulldown-cmark = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[features]
+default = []

@@ -1,0 +1,153 @@
+# fi-accel CI - Rust core + PyO3 + WASM bindings
+variables:
+  RUST_VERSION: "1.83"
+  WASM_PACK_VERSION: "0.13.1"
+  PYTHON_VERSION: "3.11"
+
+default:
+  image: rust:${RUST_VERSION}
+
+stages: [lint, build, test, publish]
+
+# Cache Rust dependencies
+.rust-cache:
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-rust"
+    paths:
+      - target/
+      - /usr/local/cargo/registry/
+    policy: pull-push
+
+# ============================================================================
+# Lint Stage
+# ============================================================================
+
+lint:rust:
+  stage: lint
+  extends: .rust-cache
+  script:
+    - rustup component add clippy rustfmt
+    - cargo fmt --all -- --check
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+# ============================================================================
+# Build Stage
+# ============================================================================
+
+build:core:
+  stage: build
+  extends: .rust-cache
+  script:
+    - cargo build --release -p fi-accel-core
+    - cargo build --release -p fi-accel-core --features tokenizer,simd
+  artifacts:
+    paths:
+      - target/release/libfi_accel_core.*
+    expire_in: 1 week
+
+build:py:
+  stage: build
+  extends: .rust-cache
+  image: rust:${RUST_VERSION}
+  before_script:
+    - apt-get update && apt-get install -y python3 python3-pip python3-venv
+    - pip3 install maturin
+  script:
+    - cd python
+    - maturin build --release
+  artifacts:
+    paths:
+      - target/wheels/
+    expire_in: 1 week
+
+build:wasm:
+  stage: build
+  extends: .rust-cache
+  before_script:
+    - rustup target add wasm32-unknown-unknown
+    - cargo install wasm-pack --version ${WASM_PACK_VERSION} --locked || true
+  script:
+    - cd crates/fi-accel-wasm
+    - wasm-pack build --target bundler --out-dir ../../pkg
+  artifacts:
+    paths:
+      - pkg/
+    expire_in: 1 week
+
+# ============================================================================
+# Test Stage
+# ============================================================================
+
+test:core:
+  stage: test
+  extends: .rust-cache
+  needs:
+    - job: build:core
+      artifacts: false
+  script:
+    - cargo test -p fi-accel-core --all-features
+  allow_failure: false
+
+test:py:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  needs:
+    - job: build:py
+      artifacts: true
+  script:
+    - pip install target/wheels/fi_accel-*.whl
+    - pip install pytest
+    - python -c "from fi_accel import count_tokens; print(count_tokens('hello world', 'gpt-4'))"
+    - python -c "from fi_accel import cosine_similarity; print(cosine_similarity([1,0], [1,0]))"
+  allow_failure: false
+
+test:wasm:
+  stage: test
+  extends: .rust-cache
+  needs:
+    - job: build:wasm
+      artifacts: false
+  script:
+    - cd crates/fi-accel-wasm
+    - cargo test
+  allow_failure: false
+
+# ============================================================================
+# Publish Stage
+# ============================================================================
+
+publish:py:
+  stage: publish
+  image: python:${PYTHON_VERSION}
+  needs:
+    - job: build:py
+      artifacts: true
+    - job: test:py
+    - job: test:core
+  script:
+    - pip install twine
+    - |
+      TWINE_USERNAME=gitlab-ci-token \
+      TWINE_PASSWORD=${CI_JOB_TOKEN} \
+      TWINE_REPOSITORY_URL=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi \
+      twine upload target/wheels/*.whl
+  rules:
+    - if: $CI_COMMIT_TAG
+  when: manual
+
+publish:npm:
+  stage: publish
+  image: node:20
+  needs:
+    - job: build:wasm
+      artifacts: true
+    - job: test:wasm
+  script:
+    - cd pkg
+    - |
+      echo "@flexinfer:registry=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/npm/" > .npmrc
+      echo "//${CI_SERVER_HOST}/api/v4/projects/${CI_PROJECT_ID}/packages/npm/:_authToken=${CI_JOB_TOKEN}" >> .npmrc
+    - npm publish
+  rules:
+    - if: $CI_COMMIT_TAG
+  when: manual

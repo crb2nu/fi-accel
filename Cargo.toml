@@ -1,0 +1,61 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/fi-accel-core",
+    "crates/fi-accel-py",
+    "crates/fi-accel-wasm",
+    "crates/fi-accel-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Cody Blevins"]
+repository = "https://gitlab.flexinfer.ai/libs/fi-accel"
+
+[workspace.dependencies]
+# Core dependencies
+tiktoken-rs = "0.6"
+simd-json = "0.14"
+similar = "2.6"
+rayon = "1.10"
+regex = "1.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+# Optional chunking
+tree-sitter = "0.24"
+pulldown-cmark = "0.12"
+tree-sitter-python = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-rust = "0.23"
+sha2 = "0.10"
+hex = "0.4"
+
+# Bindings
+pyo3 = { version = "0.22", features = ["extension-module"] }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+
+# TOML parsing
+toml = "0.8"
+
+# FFI
+cbindgen = "0.27"
+
+# Testing
+criterion = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"
+lto = true
