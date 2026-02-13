@@ -140,6 +140,36 @@ impl FiTopKResult {
     }
 }
 
+/// Rust-owned f32 array returned to the caller
+///
+/// Must be freed with `fi_float_array_free`.
+#[repr(C)]
+pub struct FiFloatArray {
+    pub data: *mut f32,
+    pub len: usize,
+    pub capacity: usize,
+}
+
+impl FiFloatArray {
+    pub fn from_vec(mut v: Vec<f32>) -> Self {
+        let arr = FiFloatArray {
+            data: v.as_mut_ptr(),
+            len: v.len(),
+            capacity: v.capacity(),
+        };
+        std::mem::forget(v);
+        arr
+    }
+
+    pub fn null() -> Self {
+        FiFloatArray {
+            data: ptr::null_mut(),
+            len: 0,
+            capacity: 0,
+        }
+    }
+}
+
 // --- Free functions ---
 
 /// Free a FiBuffer allocated by fi-accel
@@ -163,6 +193,14 @@ pub unsafe extern "C" fn fi_token_array_free(arr: FiTokenArray) {
 pub unsafe extern "C" fn fi_top_k_result_free(res: FiTopKResult) {
     if !res.entries.is_null() {
         drop(Vec::from_raw_parts(res.entries, res.len, res.capacity));
+    }
+}
+
+/// Free a FiFloatArray allocated by fi-accel
+#[no_mangle]
+pub unsafe extern "C" fn fi_float_array_free(arr: FiFloatArray) {
+    if !arr.data.is_null() {
+        drop(Vec::from_raw_parts(arr.data, arr.len, arr.capacity));
     }
 }
 

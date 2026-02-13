@@ -83,6 +83,17 @@ typedef struct FiTopKResult {
 } FiTopKResult;
 
 /**
+ * Rust-owned f32 array returned to the caller
+ *
+ * Must be freed with `fi_float_array_free`.
+ */
+typedef struct FiFloatArray {
+    float *data;
+    uintptr_t len;
+    uintptr_t capacity;
+} FiFloatArray;
+
+/**
  * Error information written by FFI functions
  */
 typedef struct FiError {
@@ -109,6 +120,11 @@ void fi_token_array_free(struct FiTokenArray arr);
  * Free a FiTopKResult allocated by fi-accel
  */
 void fi_top_k_result_free(struct FiTopKResult res);
+
+/**
+ * Free a FiFloatArray allocated by fi-accel
+ */
+void fi_float_array_free(struct FiFloatArray arr);
 
 /**
  * Create a new tokenizer for the given model name
@@ -213,6 +229,55 @@ float fi_string_similarity(const char *a, const char *b, struct FiError *err);
  * Returns a value in [0.0, 1.0] where 1.0 means identical.
  */
 float fi_line_similarity(const char *a, const char *b, struct FiError *err);
+
+/**
+ * Compute cosine similarity matrix between two sets of vectors
+ *
+ * - `a`: flat array of `num_a * dim` floats
+ * - `b`: flat array of `num_b * dim` floats
+ *
+ * Returns a flat FiFloatArray of `num_a * num_b` floats (row-major).
+ * Must be freed with `fi_float_array_free`.
+ */
+struct FiFloatArray fi_cosine_similarity_matrix(const float *a,
+                                                 const float *b,
+                                                 uintptr_t num_a,
+                                                 uintptr_t num_b,
+                                                 uintptr_t dim,
+                                                 struct FiError *err);
+
+/**
+ * Compute the centroid (average) of a set of embeddings
+ *
+ * - `embeddings`: flat array of `num_embeddings * dim` floats
+ *
+ * Returns a FiFloatArray of length `dim`.
+ * Must be freed with `fi_float_array_free`.
+ */
+struct FiFloatArray fi_compute_centroid(const float *embeddings,
+                                        uintptr_t num_embeddings,
+                                        uintptr_t dim,
+                                        struct FiError *err);
+
+/**
+ * Parse newline-delimited JSON (NDJSON) data
+ *
+ * Returns a FiBuffer containing the parsed data as a JSON array string.
+ * Must be freed with `fi_buffer_free`.
+ */
+struct FiBuffer fi_parse_ndjson(const uint8_t *data,
+                                 uintptr_t data_len,
+                                 struct FiError *err);
+
+/**
+ * Serialize a JSON array to NDJSON format
+ *
+ * Returns a FiBuffer containing newline-delimited JSON.
+ * Must be freed with `fi_buffer_free`.
+ */
+struct FiBuffer fi_to_ndjson(const uint8_t *json_array,
+                              uintptr_t json_array_len,
+                              struct FiError *err);
 
 #ifdef __cplusplus
 }  // extern "C"

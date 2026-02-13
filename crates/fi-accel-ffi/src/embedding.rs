@@ -109,3 +109,78 @@ pub unsafe extern "C" fn fi_top_k_similar(
 
     FiTopKResult::from_vec(results.into_iter().next().unwrap_or_default())
 }
+
+/// Compute cosine similarity matrix between two sets of vectors
+///
+/// - `a`: flat array of `num_a * dim` floats
+/// - `b`: flat array of `num_b * dim` floats
+/// - `num_a`, `num_b`: number of vectors in each set
+/// - `dim`: vector dimensionality
+///
+/// Returns a flat FiFloatArray of `num_a * num_b` floats (row-major).
+/// Must be freed with `fi_float_array_free`.
+#[no_mangle]
+pub unsafe extern "C" fn fi_cosine_similarity_matrix(
+    a: *const f32,
+    b: *const f32,
+    num_a: usize,
+    num_b: usize,
+    dim: usize,
+    err: *mut FiError,
+) -> FiFloatArray {
+    if a.is_null() || b.is_null() {
+        if let Some(e) = err.as_mut() {
+            e.set(FiErrorCode::InvalidArg, "pointer is null");
+        }
+        return FiFloatArray::null();
+    }
+
+    let a_vecs: Vec<Vec<f32>> = (0..num_a)
+        .map(|i| std::slice::from_raw_parts(a.add(i * dim), dim).to_vec())
+        .collect();
+    let b_vecs: Vec<Vec<f32>> = (0..num_b)
+        .map(|i| std::slice::from_raw_parts(b.add(i * dim), dim).to_vec())
+        .collect();
+
+    let matrix = fi_accel_core::embedding::cosine_similarity_matrix(&a_vecs, &b_vecs);
+
+    // Flatten row-major
+    let flat: Vec<f32> = matrix.into_iter().flat_map(|row| row).collect();
+    FiFloatArray::from_vec(flat)
+}
+
+/// Compute the centroid (average) of a set of embeddings
+///
+/// - `embeddings`: flat array of `num_embeddings * dim` floats
+/// - `num_embeddings`: number of vectors
+/// - `dim`: vector dimensionality
+///
+/// Returns a FiFloatArray of length `dim`.
+/// Must be freed with `fi_float_array_free`.
+#[no_mangle]
+pub unsafe extern "C" fn fi_compute_centroid(
+    embeddings: *const f32,
+    num_embeddings: usize,
+    dim: usize,
+    err: *mut FiError,
+) -> FiFloatArray {
+    if embeddings.is_null() {
+        if let Some(e) = err.as_mut() {
+            e.set(FiErrorCode::InvalidArg, "pointer is null");
+        }
+        return FiFloatArray::null();
+    }
+
+    if num_embeddings == 0 {
+        return FiFloatArray::null();
+    }
+
+    let vecs: Vec<Vec<f32>> = (0..num_embeddings)
+        .map(|i| std::slice::from_raw_parts(embeddings.add(i * dim), dim).to_vec())
+        .collect();
+
+    match fi_accel_core::embedding::compute_centroid(&vecs) {
+        Some(centroid) => FiFloatArray::from_vec(centroid),
+        None => FiFloatArray::null(),
+    }
+}

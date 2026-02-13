@@ -216,3 +216,124 @@ func topKSimilar(query []float32, candidates [][]float32, k int) ([]TopKEntry, e
 	}
 	return entries, nil
 }
+
+func cosineSimilarityMatrix(a, b [][]float32) ([][]float32, error) {
+	if len(a) == 0 || len(b) == 0 {
+		return nil, nil
+	}
+
+	dim := len(a[0])
+
+	// Flatten a
+	flatA := make([]float32, 0, len(a)*dim)
+	for _, v := range a {
+		if len(v) != dim {
+			return nil, &Error{Code: ErrInvalidArg, Message: "all vectors in a must have same dimensionality"}
+		}
+		flatA = append(flatA, v...)
+	}
+
+	// Flatten b
+	flatB := make([]float32, 0, len(b)*dim)
+	for _, v := range b {
+		if len(v) != dim {
+			return nil, &Error{Code: ErrInvalidArg, Message: "all vectors in b must have same dimensionality"}
+		}
+		flatB = append(flatB, v...)
+	}
+
+	var cerr C.struct_FiError
+	result := C.fi_cosine_similarity_matrix(
+		(*C.float)(unsafe.Pointer(&flatA[0])),
+		(*C.float)(unsafe.Pointer(&flatB[0])),
+		C.uintptr_t(len(a)),
+		C.uintptr_t(len(b)),
+		C.uintptr_t(dim),
+		&cerr,
+	)
+	if result.data == nil {
+		return nil, extractError(&cerr)
+	}
+	defer C.fi_float_array_free(result)
+
+	flat := unsafe.Slice((*float32)(unsafe.Pointer(result.data)), result.len)
+	matrix := make([][]float32, len(a))
+	for i := range a {
+		row := make([]float32, len(b))
+		copy(row, flat[i*len(b):(i+1)*len(b)])
+		matrix[i] = row
+	}
+	return matrix, nil
+}
+
+func computeCentroid(embeddings [][]float32) ([]float32, error) {
+	if len(embeddings) == 0 {
+		return nil, nil
+	}
+
+	dim := len(embeddings[0])
+	flat := make([]float32, 0, len(embeddings)*dim)
+	for _, v := range embeddings {
+		if len(v) != dim {
+			return nil, &Error{Code: ErrInvalidArg, Message: "all embeddings must have same dimensionality"}
+		}
+		flat = append(flat, v...)
+	}
+
+	var cerr C.struct_FiError
+	result := C.fi_compute_centroid(
+		(*C.float)(unsafe.Pointer(&flat[0])),
+		C.uintptr_t(len(embeddings)),
+		C.uintptr_t(dim),
+		&cerr,
+	)
+	if result.data == nil {
+		return nil, extractError(&cerr)
+	}
+	defer C.fi_float_array_free(result)
+
+	centroid := make([]float32, result.len)
+	src := unsafe.Slice((*float32)(unsafe.Pointer(result.data)), result.len)
+	copy(centroid, src)
+	return centroid, nil
+}
+
+func parseNDJSON(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return []byte("[]"), nil
+	}
+
+	var cerr C.struct_FiError
+	result := C.fi_parse_ndjson(
+		(*C.uint8_t)(unsafe.Pointer(&data[0])),
+		C.uintptr_t(len(data)),
+		&cerr,
+	)
+	if result.data == nil {
+		return nil, extractError(&cerr)
+	}
+	defer C.fi_buffer_free(result)
+
+	out := C.GoBytes(unsafe.Pointer(result.data), C.int(result.len))
+	return out, nil
+}
+
+func toNDJSON(jsonArray []byte) ([]byte, error) {
+	if len(jsonArray) == 0 {
+		return nil, nil
+	}
+
+	var cerr C.struct_FiError
+	result := C.fi_to_ndjson(
+		(*C.uint8_t)(unsafe.Pointer(&jsonArray[0])),
+		C.uintptr_t(len(jsonArray)),
+		&cerr,
+	)
+	if result.data == nil {
+		return nil, extractError(&cerr)
+	}
+	defer C.fi_buffer_free(result)
+
+	out := C.GoBytes(unsafe.Pointer(result.data), C.int(result.len))
+	return out, nil
+}

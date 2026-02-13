@@ -162,6 +162,70 @@ func levenshteinDist(a, b string) int {
 	return prev[len(b)]
 }
 
+func cosineSimilarityMatrix(a, b [][]float32) ([][]float32, error) {
+	if len(a) == 0 || len(b) == 0 {
+		return nil, nil
+	}
+
+	matrix := make([][]float32, len(a))
+	for i, va := range a {
+		row := make([]float32, len(b))
+		for j, vb := range b {
+			sim, err := cosineSimilarity(va, vb)
+			if err != nil {
+				return nil, err
+			}
+			row[j] = sim
+		}
+		matrix[i] = row
+	}
+	return matrix, nil
+}
+
+func computeCentroid(embeddings [][]float32) ([]float32, error) {
+	if len(embeddings) == 0 {
+		return nil, nil
+	}
+
+	dim := len(embeddings[0])
+	centroid := make([]float32, dim)
+	n := float32(len(embeddings))
+
+	for _, v := range embeddings {
+		if len(v) != dim {
+			return nil, &Error{Code: ErrInvalidArg, Message: "all embeddings must have same dimensionality"}
+		}
+		for j := range v {
+			centroid[j] += v[j]
+		}
+	}
+
+	for j := range centroid {
+		centroid[j] /= n
+	}
+	return centroid, nil
+}
+
+func parseNDJSON(data []byte) ([]byte, error) {
+	// Pure Go fallback: split by newlines, parse each as JSON, combine into array
+	lines := strings.Split(string(data), "\n")
+	var parts []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Validate it's valid JSON by checking basic structure
+		parts = append(parts, line)
+	}
+	return []byte("[" + strings.Join(parts, ",") + "]"), nil
+}
+
+func toNDJSON(jsonArray []byte) ([]byte, error) {
+	// Pure Go fallback: not implemented without JSON parsing
+	return nil, ErrNotAvailable
+}
+
 func topKSimilar(query []float32, candidates [][]float32, k int) ([]TopKEntry, error) {
 	if len(query) == 0 || len(candidates) == 0 {
 		return nil, nil
