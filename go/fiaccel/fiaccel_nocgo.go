@@ -2,7 +2,10 @@
 
 package fiaccel
 
-import "math"
+import (
+	"math"
+	"strings"
+)
 
 // Available reports whether the native fi-accel library is linked.
 func Available() bool { return false }
@@ -94,6 +97,69 @@ func normalizeL2(v []float32) error {
 		}
 	}
 	return nil
+}
+
+// --- Diff/similarity fallback (pure Go) ---
+
+func stringSimilarity(a, b string) (float32, error) {
+	if a == b {
+		return 1.0, nil
+	}
+	if len(a) == 0 || len(b) == 0 {
+		return 0.0, nil
+	}
+	dist := levenshteinDist(a, b)
+	maxLen := len(a)
+	if len(b) > maxLen {
+		maxLen = len(b)
+	}
+	return 1.0 - float32(dist)/float32(maxLen), nil
+}
+
+func lineSimilarity(a, b string) (float32, error) {
+	aLines := strings.Split(a, "\n")
+	bLines := strings.Split(b, "\n")
+	if len(aLines) == 0 || len(bLines) == 0 {
+		return 0.0, nil
+	}
+	// Join and compare as single strings (same approach as Rust side)
+	return stringSimilarity(strings.Join(aLines, "\n"), strings.Join(bLines, "\n"))
+}
+
+func levenshteinDist(a, b string) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+	prev := make([]int, len(b)+1)
+	curr := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		curr[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 0
+			if a[i-1] != b[j-1] {
+				cost = 1
+			}
+			ins := curr[j-1] + 1
+			del := prev[j] + 1
+			sub := prev[j-1] + cost
+			m := ins
+			if del < m {
+				m = del
+			}
+			if sub < m {
+				m = sub
+			}
+			curr[j] = m
+		}
+		prev, curr = curr, prev
+	}
+	return prev[len(b)]
 }
 
 func topKSimilar(query []float32, candidates [][]float32, k int) ([]TopKEntry, error) {

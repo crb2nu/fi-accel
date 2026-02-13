@@ -14,6 +14,7 @@
 pub mod types;
 pub mod tokenizer;
 pub mod embedding;
+pub mod diff;
 
 // Re-export free functions at top level for C visibility
 pub use types::{fi_buffer_free, fi_token_array_free, fi_top_k_result_free};
@@ -24,3 +25,4 @@ pub use tokenizer::{
 pub use embedding::{
     fi_cosine_similarity, fi_dot_product, fi_normalize_l2, fi_top_k_similar,
 };
+pub use diff::{fi_string_similarity, fi_line_similarity};

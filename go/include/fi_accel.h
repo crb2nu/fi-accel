@@ -198,6 +198,22 @@ struct FiTopKResult fi_top_k_similar(const float *query,
                                      uintptr_t k,
                                      struct FiError *err);
 
+/**
+ * Compute string similarity between two UTF-8 strings using Myers diff.
+ *
+ * Returns a value in [0.0, 1.0] where 1.0 means identical.
+ * Returns 0.0 and sets error on invalid input.
+ */
+float fi_string_similarity(const char *a, const char *b, struct FiError *err);
+
+/**
+ * Compute line-level similarity between two multiline UTF-8 strings.
+ *
+ * Each string is treated as a sequence of lines (split by newline).
+ * Returns a value in [0.0, 1.0] where 1.0 means identical.
+ */
+float fi_line_similarity(const char *a, const char *b, struct FiError *err);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus

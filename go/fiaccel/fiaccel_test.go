@@ -125,6 +125,71 @@ func TestTopKSimilar(t *testing.T) {
 	}
 }
 
+func TestStringSimilarityIdentical(t *testing.T) {
+	sim, err := StringSimilarity("hello world", "hello world")
+	if err != nil {
+		t.Fatalf("StringSimilarity: %v", err)
+	}
+	if math.Abs(float64(sim-1.0)) > 0.001 {
+		t.Errorf("Expected ~1.0 for identical strings, got %f", sim)
+	}
+}
+
+func TestStringSimilaritySimilar(t *testing.T) {
+	sim, err := StringSimilarity("hello world", "hello word")
+	if err != nil {
+		t.Fatalf("StringSimilarity: %v", err)
+	}
+	if sim < 0.8 {
+		t.Errorf("Expected > 0.8 for similar strings, got %f", sim)
+	}
+	t.Logf("Similarity 'hello world' vs 'hello word': %f (available=%v)", sim, Available())
+}
+
+func TestStringSimilarityDifferent(t *testing.T) {
+	sim, err := StringSimilarity("hello", "goodbye")
+	if err != nil {
+		t.Fatalf("StringSimilarity: %v", err)
+	}
+	if sim > 0.5 {
+		t.Errorf("Expected < 0.5 for different strings, got %f", sim)
+	}
+}
+
+func TestStringSimilarityEmpty(t *testing.T) {
+	sim, err := StringSimilarity("", "hello")
+	if err != nil {
+		t.Fatalf("StringSimilarity: %v", err)
+	}
+	if sim != 0.0 {
+		t.Errorf("Expected 0.0 for empty vs non-empty, got %f", sim)
+	}
+}
+
+func TestLineSimilarity(t *testing.T) {
+	a := "line one\nline two\nline three"
+	b := "line one\nline two\nline three"
+	sim, err := LineSimilarity(a, b)
+	if err != nil {
+		t.Fatalf("LineSimilarity: %v", err)
+	}
+	if math.Abs(float64(sim-1.0)) > 0.001 {
+		t.Errorf("Expected ~1.0 for identical lines, got %f", sim)
+	}
+}
+
+func TestLineSimilarityPartial(t *testing.T) {
+	a := "line one\nline two\nline three"
+	b := "line one\nline TWO\nline three"
+	sim, err := LineSimilarity(a, b)
+	if err != nil {
+		t.Fatalf("LineSimilarity: %v", err)
+	}
+	if sim < 0.8 || sim >= 1.0 {
+		t.Errorf("Expected high but <1.0 similarity, got %f", sim)
+	}
+}
+
 func TestMismatchedVectorLength(t *testing.T) {
 	a := []float32{1, 2}
 	b := []float32{1, 2, 3}
