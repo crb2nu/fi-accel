@@ -49,11 +49,7 @@ pub unsafe extern "C" fn fi_dot_product(
 
 /// Normalize a vector in-place to unit length (L2 normalization)
 #[no_mangle]
-pub unsafe extern "C" fn fi_normalize_l2(
-    v: *mut f32,
-    dim: usize,
-    err: *mut FiError,
-) {
+pub unsafe extern "C" fn fi_normalize_l2(v: *mut f32, dim: usize, err: *mut FiError) {
     if v.is_null() {
         if let Some(e) = err.as_mut() {
             e.set(FiErrorCode::InvalidArg, "vector pointer is null");
