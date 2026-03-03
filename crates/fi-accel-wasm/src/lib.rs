@@ -225,11 +225,9 @@ pub fn parse_jsonrpc_batch_str(data: &str) -> JsValue {
 /// Parse TOML string and return as JavaScript object
 #[wasm_bindgen]
 pub fn parse_toml(toml_str: &str) -> Result<JsValue, JsValue> {
-    let json_value = toml::parse_toml(toml_str)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let json_value = toml::parse_toml(toml_str).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    serde_wasm_bindgen::to_value(&json_value)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&json_value).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Validate TOML syntax without fully parsing
@@ -243,21 +241,18 @@ pub fn validate_toml(toml_str: &str) -> Result<bool, JsValue> {
 /// Convert a JavaScript object to TOML string
 #[wasm_bindgen]
 pub fn json_to_toml(obj: JsValue) -> Result<String, JsValue> {
-    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_wasm_bindgen::from_value(obj).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    toml::json_to_toml(&json_value)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    toml::json_to_toml(&json_value).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Merge two TOML strings, with overlay values taking precedence
 #[wasm_bindgen]
 pub fn merge_toml(base: &str, overlay: &str) -> Result<JsValue, JsValue> {
-    let merged = toml::merge_toml(base, overlay)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let merged = toml::merge_toml(base, overlay).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    serde_wasm_bindgen::to_value(&merged)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&merged).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 // ============================================================================
@@ -267,18 +262,16 @@ pub fn merge_toml(base: &str, overlay: &str) -> Result<JsValue, JsValue> {
 /// Parse TOON string and return as JavaScript object
 #[wasm_bindgen]
 pub fn parse_toon(toon_str: &str) -> Result<JsValue, JsValue> {
-    let json_value = toon::parse_toon(toon_str)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let json_value = toon::parse_toon(toon_str).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    serde_wasm_bindgen::to_value(&json_value)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&json_value).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Convert a JavaScript object to TOON string
 #[wasm_bindgen]
 pub fn to_toon(obj: JsValue) -> Result<String, JsValue> {
-    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_wasm_bindgen::from_value(obj).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     Ok(toon::to_toon(&json_value))
 }
@@ -294,8 +287,8 @@ pub fn validate_toon(toon_str: &str) -> Result<bool, JsValue> {
 /// Convert JSON value to TOON string
 #[wasm_bindgen]
 pub fn json_to_toon(obj: JsValue) -> Result<String, JsValue> {
-    let json_value: serde_json::Value = serde_wasm_bindgen::from_value(obj)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_wasm_bindgen::from_value(obj).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     Ok(toon::json_to_toon(&json_value))
 }
@@ -312,11 +305,10 @@ pub fn chunk_markdown(content: &str, max_tokens: Option<usize>) -> Result<JsValu
         ..chunker::ChunkConfig::default()
     };
 
-    let chunks = chunker::chunk_markdown(content, &config)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let chunks =
+        chunker::chunk_markdown(content, &config).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    serde_wasm_bindgen::to_value(&chunks)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Chunk plain text by paragraphs and sentences
@@ -329,8 +321,7 @@ pub fn chunk_text(content: &str, max_tokens: Option<usize>) -> Result<JsValue, J
 
     let chunks = chunker::chunk_text(content, &config);
 
-    serde_wasm_bindgen::to_value(&chunks)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 /// Detect content type from file path
