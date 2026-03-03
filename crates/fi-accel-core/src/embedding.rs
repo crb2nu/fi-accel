@@ -92,7 +92,11 @@ pub fn cosine_similarity_normalized(a: &[f32], b: &[f32]) -> f32 {
 /// For best performance, vectors should be pre-normalized using `normalize_l2`.
 pub fn cosine_similarity_matrix(a: &[Vec<f32>], b: &[Vec<f32>]) -> Vec<Vec<f32>> {
     a.par_iter()
-        .map(|vec_a| b.iter().map(|vec_b| cosine_similarity(vec_a, vec_b)).collect())
+        .map(|vec_a| {
+            b.iter()
+                .map(|vec_b| cosine_similarity(vec_a, vec_b))
+                .collect()
+        })
         .collect()
 }
 

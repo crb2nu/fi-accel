@@ -1,6 +1,6 @@
 //! Plain text chunking by paragraphs and sentences
 
-use super::{Chunk, ChunkConfig, ChunkKind, count_or_estimate_tokens, generate_chunk_id};
+use super::{count_or_estimate_tokens, generate_chunk_id, Chunk, ChunkConfig, ChunkKind};
 
 /// Split plain text into chunks by paragraph boundaries, falling back to
 /// sentence splitting when paragraphs exceed the token limit.
@@ -105,11 +105,7 @@ fn split_paragraphs(content: &str) -> Vec<Paragraph<'_>> {
     let mut para_start_line = 1usize;
     let mut current_line = 1usize;
 
-    for (byte_offset, line) in content.split('\n').enumerate().map(|(i, l)| {
-        // Track byte position manually
-        (i, l)
-    }) {
-        let _ = byte_offset;
+    for line in content.split('\n') {
         let is_blank = line.trim().is_empty();
 
         if is_blank {
@@ -243,8 +239,8 @@ fn looks_like_abbreviation(text: &str) -> bool {
     // Common abbreviations
     let lower = trimmed.to_lowercase();
     let abbrevs = [
-        "e.g.", "i.e.", "etc.", "vs.", "mr.", "mrs.", "dr.", "jr.", "sr.",
-        "st.", "ave.", "blvd.", "dept.", "inc.", "ltd.", "corp.",
+        "e.g.", "i.e.", "etc.", "vs.", "mr.", "mrs.", "dr.", "jr.", "sr.", "st.", "ave.", "blvd.",
+        "dept.", "inc.", "ltd.", "corp.",
     ];
 
     for abbr in &abbrevs {
@@ -297,7 +293,8 @@ mod tests {
 
     #[test]
     fn test_chunk_text_single_paragraph() {
-        let content = "Just one paragraph with multiple sentences. This is the second. And a third.";
+        let content =
+            "Just one paragraph with multiple sentences. This is the second. And a third.";
         let config = ChunkConfig::default();
         let chunks = chunk_text(content, &config);
 

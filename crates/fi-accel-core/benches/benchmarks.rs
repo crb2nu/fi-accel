@@ -2,8 +2,8 @@
 //!
 //! Run with: cargo bench -p fi-accel-core
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use fi_accel_core::{embedding, diff, log, json};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use fi_accel_core::{diff, embedding, json, log};
 
 #[cfg(feature = "chunker")]
 use fi_accel_core::chunker;
@@ -14,7 +14,9 @@ fn bench_embedding(c: &mut Criterion) {
     // Generate test embeddings
     let dims = 1536; // OpenAI embedding dimension
     let create_embedding = |seed: u32| -> Vec<f32> {
-        (0..dims).map(|i| ((seed * 17 + i as u32) % 1000) as f32 / 1000.0).collect()
+        (0..dims)
+            .map(|i| ((seed * 17 + i as u32) % 1000) as f32 / 1000.0)
+            .collect()
     };
 
     // Single cosine similarity
@@ -32,7 +34,9 @@ fn bench_embedding(c: &mut Criterion) {
     // Matrix similarity for different sizes
     for size in [10, 100, 500].iter() {
         let queries: Vec<Vec<f32>> = (0..*size).map(|i| create_embedding(i as u32)).collect();
-        let docs: Vec<Vec<f32>> = (0..*size).map(|i| create_embedding(i as u32 + 1000)).collect();
+        let docs: Vec<Vec<f32>> = (0..*size)
+            .map(|i| create_embedding(i as u32 + 1000))
+            .collect();
 
         group.bench_with_input(
             BenchmarkId::new("cosine_similarity_matrix", format!("{}x{}", size, size)),
@@ -45,7 +49,8 @@ fn bench_embedding(c: &mut Criterion) {
 
     // L2 normalization
     for size in [10, 100, 1000].iter() {
-        let mut embeddings: Vec<Vec<f32>> = (0..*size).map(|i| create_embedding(i as u32)).collect();
+        let mut embeddings: Vec<Vec<f32>> =
+            (0..*size).map(|i| create_embedding(i as u32)).collect();
 
         group.bench_with_input(
             BenchmarkId::new("normalize_l2", size),
@@ -115,8 +120,15 @@ fn bench_log(c: &mut Criterion) {
                     2 => "WARN",
                     _ => "ERROR",
                 };
-                format!("[{}] 2024-01-{:02} {:02}:{:02}:{:02} - Message number {}",
-                    level, i % 28 + 1, i % 24, i % 60, i % 60, i)
+                format!(
+                    "[{}] 2024-01-{:02} {:02}:{:02}:{:02} - Message number {}",
+                    level,
+                    i % 28 + 1,
+                    i % 24,
+                    i % 60,
+                    i % 60,
+                    i
+                )
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -185,9 +197,15 @@ fn bench_json(c: &mut Criterion) {
         (0..count)
             .map(|i| {
                 if i % 2 == 0 {
-                    format!(r#"{{"jsonrpc":"2.0","id":{},"method":"test","params":{{"x":{}}}}}"#, i, i)
+                    format!(
+                        r#"{{"jsonrpc":"2.0","id":{},"method":"test","params":{{"x":{}}}}}"#,
+                        i, i
+                    )
                 } else {
-                    format!(r#"{{"jsonrpc":"2.0","id":{},"result":{{"value":{}}}}}"#, i, i)
+                    format!(
+                        r#"{{"jsonrpc":"2.0","id":{},"result":{{"value":{}}}}}"#,
+                        i, i
+                    )
                 }
             })
             .collect::<Vec<_>>()
@@ -293,19 +311,10 @@ if __name__ == "__main__":
     group.finish();
 }
 
-criterion_group!(
-    benches,
-    bench_embedding,
-    bench_diff,
-    bench_log,
-    bench_json,
-);
+criterion_group!(benches, bench_embedding, bench_diff, bench_log, bench_json,);
 
 #[cfg(feature = "chunker")]
-criterion_group!(
-    chunker_benches,
-    bench_chunker,
-);
+criterion_group!(chunker_benches, bench_chunker,);
 
 #[cfg(feature = "chunker")]
 criterion_main!(benches, chunker_benches);

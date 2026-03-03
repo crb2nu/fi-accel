@@ -68,8 +68,15 @@ fn needs_quotes(text: &str, delimiter: char) -> bool {
         if code < 0x20 || code == 0x7F {
             return true;
         }
-        if ch == ' ' || ch == '"' || ch == '\\' || ch == ':' || ch == '{' || ch == '}' || ch == '['
-            || ch == ']' || ch == delimiter
+        if ch == ' '
+            || ch == '"'
+            || ch == '\\'
+            || ch == ':'
+            || ch == '{'
+            || ch == '}'
+            || ch == '['
+            || ch == ']'
+            || ch == delimiter
         {
             return true;
         }
@@ -164,7 +171,13 @@ fn tabularize(items: &[Value]) -> Option<(Vec<String>, Vec<Vec<String>>)> {
 }
 
 /// Encode an array to TOON lines
-fn encode_array(lines: &mut Vec<String>, indent: usize, key: &str, items: &[Value], anonymous: bool) {
+fn encode_array(
+    lines: &mut Vec<String>,
+    indent: usize,
+    key: &str,
+    items: &[Value],
+    anonymous: bool,
+) {
     let indent_str = "  ".repeat(indent);
     let name = if anonymous {
         "items".to_string()
@@ -220,9 +233,8 @@ fn encode_array(lines: &mut Vec<String>, indent: usize, key: &str, items: &[Valu
                 encode_array(lines, indent + 2, "items", arr, true);
             }
             _ => {
-                let tok = primitive_token(item).unwrap_or_else(|| {
-                    string_token(&item.to_string(), ',')
-                });
+                let tok =
+                    primitive_token(item).unwrap_or_else(|| string_token(&item.to_string(), ','));
                 lines.push(format!("{}- {}", item_indent, tok));
             }
         }
@@ -257,9 +269,8 @@ fn encode_value(lines: &mut Vec<String>, indent: usize, key: &str, value: &Value
             encode_array(lines, indent, key, arr, false);
         }
         _ => {
-            let tok = primitive_token(value).unwrap_or_else(|| {
-                string_token(&value.to_string(), ',')
-            });
+            let tok =
+                primitive_token(value).unwrap_or_else(|| string_token(&value.to_string(), ','));
             lines.push(format!("{}{}: {}", indent_str, key_tok, tok));
         }
     }
@@ -379,7 +390,7 @@ impl<'a> ToonParser<'a> {
             Ok((key, rest.trim_start()))
         } else {
             // Unquoted key - find the delimiter
-            let delim_pos = line.find(|c| c == ':' || c == '[');
+            let delim_pos = line.find([':', '[']);
             match delim_pos {
                 Some(pos) => {
                     let key = line[..pos].trim().to_string();
@@ -391,7 +402,11 @@ impl<'a> ToonParser<'a> {
         }
     }
 
-    fn parse_array_header(&self, key: &str, rest: &str) -> Option<(String, usize, Option<Vec<String>>)> {
+    fn parse_array_header(
+        &self,
+        key: &str,
+        rest: &str,
+    ) -> Option<(String, usize, Option<Vec<String>>)> {
         // Pattern: [count] or [count]{headers}:
         let full = format!("{}{}", key, rest);
 
@@ -407,7 +422,12 @@ impl<'a> ToonParser<'a> {
         let headers = if after_bracket.starts_with('{') {
             let brace_end = after_bracket.find('}')?;
             let headers_str = &after_bracket[1..brace_end];
-            Some(headers_str.split(',').map(|s| s.trim().to_string()).collect())
+            Some(
+                headers_str
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect(),
+            )
         } else {
             None
         };

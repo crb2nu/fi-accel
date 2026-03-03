@@ -64,7 +64,12 @@ impl LogReader {
     /// Get all lines matching the current filter (or all lines if no filter)
     pub fn filter(&self, pattern: &str) -> Vec<String> {
         match Regex::new(pattern) {
-            Ok(re) => self.lines.iter().filter(|line| re.is_match(line)).cloned().collect(),
+            Ok(re) => self
+                .lines
+                .iter()
+                .filter(|line| re.is_match(line))
+                .cloned()
+                .collect(),
             Err(_) => {
                 // Fall back to substring match
                 self.lines
@@ -79,7 +84,12 @@ impl LogReader {
     /// Get lines matching the stored filter
     pub fn get_filtered(&self) -> Vec<String> {
         match &self.filter_regex {
-            Some(re) => self.lines.iter().filter(|line| re.is_match(line)).cloned().collect(),
+            Some(re) => self
+                .lines
+                .iter()
+                .filter(|line| re.is_match(line))
+                .cloned()
+                .collect(),
             None => self.lines.clone(),
         }
     }

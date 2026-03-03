@@ -8,18 +8,18 @@
 //! Chunks include SHA-256 IDs for deduplication and optional exact token counts
 //! when the `tokenizer` feature is also enabled.
 
-mod text;
-mod markdown;
 mod language;
+mod markdown;
+mod text;
 
-#[cfg(feature = "tree-sitter")]
-mod parser;
 #[cfg(feature = "tree-sitter")]
 mod code;
+#[cfg(feature = "tree-sitter")]
+mod parser;
 
-pub use language::{Language, detect_content_type, ContentType};
-pub use text::chunk_text;
+pub use language::{detect_content_type, ContentType, Language};
 pub use markdown::chunk_markdown;
+pub use text::chunk_text;
 
 #[cfg(feature = "tree-sitter")]
 pub use code::chunk_code;
@@ -139,7 +139,7 @@ pub(crate) fn generate_chunk_id(file_path: Option<&str>, line: usize, content: &
 
 /// Estimate tokens using 4-chars-per-token heuristic
 pub(crate) fn estimate_tokens(content: &str) -> usize {
-    (content.len() + 3) / 4
+    content.len().div_ceil(4)
 }
 
 /// Count tokens exactly if the tokenizer feature is enabled, otherwise estimate

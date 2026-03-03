@@ -10,20 +10,24 @@ use tree_sitter::{Node, Parser, Tree};
 pub fn create_parser(lang: &Language) -> Result<Parser, ChunkerError> {
     let mut parser = Parser::new();
     let language = get_language(lang)?;
-    parser.set_language(&language).map_err(|e| ChunkerError::ParseError {
-        line: 0,
-        message: format!("Failed to set language: {}", e),
-    })?;
+    parser
+        .set_language(&language)
+        .map_err(|e| ChunkerError::ParseError {
+            line: 0,
+            message: format!("Failed to set language: {}", e),
+        })?;
     Ok(parser)
 }
 
 /// Parse source code into a tree-sitter AST
 pub fn parse_code(content: &str, lang: &Language) -> Result<Tree, ChunkerError> {
     let mut parser = create_parser(lang)?;
-    parser.parse(content, None).ok_or_else(|| ChunkerError::ParseError {
-        line: 0,
-        message: "Tree-sitter parse returned None".to_string(),
-    })
+    parser
+        .parse(content, None)
+        .ok_or_else(|| ChunkerError::ParseError {
+            line: 0,
+            message: "Tree-sitter parse returned None".to_string(),
+        })
 }
 
 /// Get the tree-sitter Language for a given language enum
@@ -49,13 +53,12 @@ pub fn is_function_def(node: Node, lang: &Language) -> bool {
         Language::TypeScript | Language::JavaScript => {
             matches!(
                 node.kind(),
-                "function_declaration"
-                    | "method_definition"
-                    | "arrow_function"
-                    | "function"
+                "function_declaration" | "method_definition" | "arrow_function" | "function"
             )
         }
-        Language::Go => node.kind() == "function_declaration" || node.kind() == "method_declaration",
+        Language::Go => {
+            node.kind() == "function_declaration" || node.kind() == "method_declaration"
+        }
         Language::Rust => node.kind() == "function_item",
     }
 }
@@ -69,7 +72,10 @@ pub fn is_class_def(node: Node, lang: &Language) -> bool {
         }
         Language::Go => node.kind() == "type_declaration",
         Language::Rust => {
-            matches!(node.kind(), "struct_item" | "enum_item" | "impl_item" | "trait_item")
+            matches!(
+                node.kind(),
+                "struct_item" | "enum_item" | "impl_item" | "trait_item"
+            )
         }
     }
 }
@@ -242,10 +248,14 @@ pub fn extract_imports(content: &str, lang: &Language) -> Result<Vec<String>, Ch
                 if child.kind() == "import_declaration" {
                     let mut inner_cursor = child.walk();
                     for spec_child in child.children(&mut inner_cursor) {
-                        if spec_child.kind() == "import_spec" || spec_child.kind() == "import_spec_list" {
+                        if spec_child.kind() == "import_spec"
+                            || spec_child.kind() == "import_spec_list"
+                        {
                             let mut spec_cursor = spec_child.walk();
                             for spec in spec_child.children(&mut spec_cursor) {
-                                if spec.kind() == "import_spec" || spec.kind() == "interpreted_string_literal" {
+                                if spec.kind() == "import_spec"
+                                    || spec.kind() == "interpreted_string_literal"
+                                {
                                     let path = node_text(spec, content);
                                     imports.push(
                                         path.trim_matches(|c| c == '"' || c == '`').to_string(),
@@ -301,7 +311,9 @@ mod tests {
         let tree = parse_code(content, &Language::Python).unwrap();
         let root = tree.root_node();
         let mut cursor = root.walk();
-        let func_node = root.children(&mut cursor).find(|n| n.kind() == "function_definition");
+        let func_node = root
+            .children(&mut cursor)
+            .find(|n| n.kind() == "function_definition");
         assert!(func_node.is_some());
         assert!(is_function_def(func_node.unwrap(), &Language::Python));
     }
@@ -312,7 +324,10 @@ mod tests {
         let tree = parse_code(content, &Language::Python).unwrap();
         let root = tree.root_node();
         let mut cursor = root.walk();
-        let func_node = root.children(&mut cursor).find(|n| n.kind() == "function_definition").unwrap();
+        let func_node = root
+            .children(&mut cursor)
+            .find(|n| n.kind() == "function_definition")
+            .unwrap();
         assert_eq!(get_node_name(func_node, content), Some("hello".to_string()));
     }
 

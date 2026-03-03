@@ -10,7 +10,9 @@ use super::parser::{
     class_body_kind, extract_imports, get_docstring, get_function_signature, get_node_name,
     is_class_def, is_function_def, node_text, parse_code,
 };
-use super::{Chunk, ChunkConfig, ChunkKind, ChunkerError, count_or_estimate_tokens, generate_chunk_id};
+use super::{
+    count_or_estimate_tokens, generate_chunk_id, Chunk, ChunkConfig, ChunkKind, ChunkerError,
+};
 
 /// Chunk source code using tree-sitter AST analysis.
 ///
@@ -85,7 +87,15 @@ fn walk_tree(
         chunks.push(class_chunk);
 
         // Extract methods from class body
-        extract_class_methods(node, content, lang, config, imports, class_name.as_deref(), chunks);
+        extract_class_methods(
+            node,
+            content,
+            lang,
+            config,
+            imports,
+            class_name.as_deref(),
+            chunks,
+        );
         return;
     }
 
@@ -135,12 +145,7 @@ fn extract_function(
 }
 
 /// Extract a class definition as a chunk (definition only, not methods)
-fn extract_class(
-    node: Node,
-    content: &str,
-    lang: &Language,
-    config: &ChunkConfig,
-) -> Chunk {
+fn extract_class(node: Node, content: &str, lang: &Language, config: &ChunkConfig) -> Chunk {
     let name = get_node_name(node, content);
 
     // Get class definition up to first method
@@ -241,7 +246,10 @@ def hello(name: str) -> str:
         assert!(func.is_some(), "Should find hello function");
         let f = func.unwrap();
         assert_eq!(f.kind, ChunkKind::Function);
-        assert!(f.docstring.as_ref().map_or(false, |d| d.contains("Say hello")));
+        assert!(f
+            .docstring
+            .as_ref()
+            .is_some_and(|d| d.contains("Say hello")));
     }
 
     #[test]
@@ -263,7 +271,10 @@ class Greeter:
         assert!(class.is_some(), "Should find class");
         assert_eq!(class.unwrap().name.as_deref(), Some("Greeter"));
 
-        let methods: Vec<_> = chunks.iter().filter(|c| c.kind == ChunkKind::Method).collect();
+        let methods: Vec<_> = chunks
+            .iter()
+            .filter(|c| c.kind == ChunkKind::Method)
+            .collect();
         assert_eq!(methods.len(), 2);
 
         for method in &methods {
@@ -286,7 +297,9 @@ func SayHello(name string) string {
         let config = ChunkConfig::default();
         let chunks = chunk_code(content, &Language::Go, &config).unwrap();
 
-        let func = chunks.iter().find(|c| c.name.as_deref() == Some("SayHello"));
+        let func = chunks
+            .iter()
+            .find(|c| c.name.as_deref() == Some("SayHello"));
         assert!(func.is_some());
         assert_eq!(func.unwrap().kind, ChunkKind::Function);
     }

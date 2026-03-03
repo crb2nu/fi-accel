@@ -30,8 +30,8 @@ pub use diff::{DiffError, FuzzyMatcher, PatchResult};
 pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
 pub use json::parse_ndjson;
 pub use log::LogReader;
-pub use toml::{parse_toml, validate_toml, json_to_toml, merge_toml};
-pub use toon::{parse_toon, to_toon, validate_toon, json_to_toon};
+pub use toml::{json_to_toml, merge_toml, parse_toml, validate_toml};
+pub use toon::{json_to_toon, parse_toon, to_toon, validate_toon};
 
 #[cfg(feature = "tokenizer")]
 pub use tokenizer::{count_tokens, split_by_tokens, truncate_to_tokens, Tokenizer};

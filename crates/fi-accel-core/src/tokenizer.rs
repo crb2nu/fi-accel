@@ -59,13 +59,10 @@ fn get_tokenizer_for_model(model: &str) -> Result<CoreBPE, TokenizerError> {
     let encodings = get_model_encodings();
 
     // First check if model name directly maps to encoding
-    let encoding_name = encodings
-        .get(model)
-        .copied()
-        .unwrap_or_else(|| {
-            // Default to cl100k_base for unknown models (most common)
-            "cl100k_base"
-        });
+    let encoding_name = encodings.get(model).copied().unwrap_or({
+        // Default to cl100k_base for unknown models (most common)
+        "cl100k_base"
+    });
 
     get_encoding(encoding_name)
 }

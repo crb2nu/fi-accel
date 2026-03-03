@@ -201,7 +201,9 @@ impl FuzzyMatcher {
             .max_by(|(line_a, score_a), (line_b, score_b)| {
                 // Primary: higher score
                 // Secondary: closer to expected position
-                let cmp = score_a.partial_cmp(score_b).unwrap_or(std::cmp::Ordering::Equal);
+                let cmp = score_a
+                    .partial_cmp(score_b)
+                    .unwrap_or(std::cmp::Ordering::Equal);
                 if cmp != std::cmp::Ordering::Equal {
                     return cmp;
                 }
@@ -294,7 +296,11 @@ impl FuzzyMatcher {
 }
 
 /// Apply a hunk at a specific line position
-fn apply_hunk_at(lines: &mut Vec<String>, hunk: &Hunk, start_line: usize) -> Result<i32, DiffError> {
+fn apply_hunk_at(
+    lines: &mut Vec<String>,
+    hunk: &Hunk,
+    start_line: usize,
+) -> Result<i32, DiffError> {
     let mut removals = 0;
     let mut additions = 0;
     let mut current = start_line;

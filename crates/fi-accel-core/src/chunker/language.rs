@@ -23,6 +23,7 @@ impl Language {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "python" | "py" => Some(Self::Python),
@@ -123,14 +124,8 @@ mod tests {
             detect_content_type("src/main.py"),
             ContentType::Code(Language::Python)
         );
-        assert_eq!(
-            detect_content_type("README.md"),
-            ContentType::Markdown
-        );
-        assert_eq!(
-            detect_content_type("notes.txt"),
-            ContentType::PlainText
-        );
+        assert_eq!(detect_content_type("README.md"), ContentType::Markdown);
+        assert_eq!(detect_content_type("notes.txt"), ContentType::PlainText);
         assert_eq!(
             detect_content_type("src/lib.rs"),
             ContentType::Code(Language::Rust)
@@ -139,10 +134,7 @@ mod tests {
 
     #[test]
     fn test_detect_content_type_case_insensitive() {
-        assert_eq!(
-            detect_content_type("DOC.MD"),
-            ContentType::Markdown
-        );
+        assert_eq!(detect_content_type("DOC.MD"), ContentType::Markdown);
         assert_eq!(
             detect_content_type("main.PY"),
             ContentType::Code(Language::Python)

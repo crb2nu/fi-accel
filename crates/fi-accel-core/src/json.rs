@@ -73,23 +73,19 @@ fn borrowed_to_owned(v: &simd_json::BorrowedValue) -> serde_json::Value {
             simd_json::StaticNode::Bool(b) => serde_json::Value::Bool(*b),
             simd_json::StaticNode::I64(n) => serde_json::Value::Number((*n).into()),
             simd_json::StaticNode::U64(n) => serde_json::Value::Number((*n).into()),
-            simd_json::StaticNode::F64(n) => {
-                serde_json::Number::from_f64(*n)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
-            }
+            simd_json::StaticNode::F64(n) => serde_json::Number::from_f64(*n)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null),
         },
         simd_json::BorrowedValue::String(s) => serde_json::Value::String(s.to_string()),
         simd_json::BorrowedValue::Array(arr) => {
             serde_json::Value::Array(arr.iter().map(borrowed_to_owned).collect())
         }
-        simd_json::BorrowedValue::Object(obj) => {
-            serde_json::Value::Object(
-                obj.iter()
-                    .map(|(k, v)| (k.to_string(), borrowed_to_owned(v)))
-                    .collect(),
-            )
-        }
+        simd_json::BorrowedValue::Object(obj) => serde_json::Value::Object(
+            obj.iter()
+                .map(|(k, v)| (k.to_string(), borrowed_to_owned(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -183,10 +179,7 @@ mod tests {
 
     #[test]
     fn test_to_ndjson() {
-        let values = vec![
-            serde_json::json!({"a": 1}),
-            serde_json::json!({"b": 2}),
-        ];
+        let values = vec![serde_json::json!({"a": 1}), serde_json::json!({"b": 2})];
         let ndjson = to_ndjson(&values).unwrap();
         assert!(ndjson.contains("{\"a\":1}"));
         assert!(ndjson.contains("{\"b\":2}"));

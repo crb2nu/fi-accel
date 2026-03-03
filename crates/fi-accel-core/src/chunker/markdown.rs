@@ -2,7 +2,9 @@
 
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
-use super::{Chunk, ChunkConfig, ChunkKind, ChunkerError, count_or_estimate_tokens, generate_chunk_id};
+use super::{
+    count_or_estimate_tokens, generate_chunk_id, Chunk, ChunkConfig, ChunkKind, ChunkerError,
+};
 
 /// Split markdown content into chunks at heading boundaries.
 ///

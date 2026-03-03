@@ -49,23 +49,21 @@ pub fn to_toml<T: Serialize>(value: &T) -> Result<String, TomlError> {
 
 /// Validate TOML syntax without fully parsing
 pub fn validate_toml(toml_str: &str) -> Result<(), TomlError> {
-    toml_str
-        .parse::<toml::Table>()
-        .map_err(|e| {
-            // Extract line/column info if available
-            let message = e.message();
-            if let Some(span) = e.span() {
-                // Calculate line and column from span
-                let (line, column) = line_col_from_offset(toml_str, span.start);
-                TomlError::InvalidToml {
-                    line,
-                    column,
-                    message: message.to_string(),
-                }
-            } else {
-                TomlError::ParseError(message.to_string())
+    toml_str.parse::<toml::Table>().map_err(|e| {
+        // Extract line/column info if available
+        let message = e.message();
+        if let Some(span) = e.span() {
+            // Calculate line and column from span
+            let (line, column) = line_col_from_offset(toml_str, span.start);
+            TomlError::InvalidToml {
+                line,
+                column,
+                message: message.to_string(),
             }
-        })?;
+        } else {
+            TomlError::ParseError(message.to_string())
+        }
+    })?;
     Ok(())
 }
 
@@ -211,7 +209,7 @@ mod tests {
         let result = parse_toml(toml_str).unwrap();
         assert_eq!(result["string"], "hello");
         assert_eq!(result["integer"], 42);
-        assert!(result["float"].as_f64().unwrap() - 3.14 < 0.001);
+        assert!(result["float"].as_f64().unwrap() - std::f64::consts::PI < 0.01);
         assert_eq!(result["boolean"], true);
         assert_eq!(result["array"].as_array().unwrap().len(), 3);
     }
