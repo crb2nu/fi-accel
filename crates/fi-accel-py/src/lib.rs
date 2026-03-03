@@ -2,7 +2,7 @@
 //!
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, toml, toon, tokenizer};
+use fi_accel_core::{chunker, diff, embedding, json, log, tokenizer, toml, toon};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -30,7 +30,12 @@ fn truncate_to_tokens(text: &str, max_tokens: usize, model: &str) -> PyResult<St
 /// Split text into chunks of approximately chunk_size tokens with overlap
 #[pyfunction]
 #[pyo3(signature = (text, chunk_size, overlap = 0, model = "gpt-4"))]
-fn split_by_tokens(text: &str, chunk_size: usize, overlap: usize, model: &str) -> PyResult<Vec<String>> {
+fn split_by_tokens(
+    text: &str,
+    chunk_size: usize,
+    overlap: usize,
+    model: &str,
+) -> PyResult<Vec<String>> {
     tokenizer::split_by_tokens(text, chunk_size, overlap, model)
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
@@ -279,8 +284,8 @@ fn parse_ndjson(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
     values
         .into_iter()
         .map(|v| {
-            let json_str = serde_json::to_string(&v)
-                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let json_str =
+                serde_json::to_string(&v).map_err(|e| PyValueError::new_err(e.to_string()))?;
             // Use Python's json module to parse
             let json_module = py.import_bound("json")?;
             let result = json_module.call_method1("loads", (json_str,))?;
@@ -325,11 +330,11 @@ fn parse_jsonrpc_batch(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
 /// Parse TOML string to a Python dict (via JSON conversion)
 #[pyfunction]
 fn parse_toml(py: Python<'_>, toml_str: &str) -> PyResult<PyObject> {
-    let json_value = toml::parse_toml(toml_str)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_value =
+        toml::parse_toml(toml_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    let json_str = serde_json::to_string(&json_value)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_str =
+        serde_json::to_string(&json_value).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     let json_module = py.import_bound("json")?;
     let result = json_module.call_method1("loads", (json_str,))?;
@@ -349,25 +354,22 @@ fn validate_toml(toml_str: &str) -> PyResult<bool> {
 #[pyfunction]
 fn json_to_toml(py: Python<'_>, obj: PyObject) -> PyResult<String> {
     let json_module = py.import_bound("json")?;
-    let json_str: String = json_module
-        .call_method1("dumps", (obj,))?
-        .extract()?;
+    let json_str: String = json_module.call_method1("dumps", (obj,))?.extract()?;
 
-    let json_value: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    toml::json_to_toml(&json_value)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    toml::json_to_toml(&json_value).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Merge two TOML strings, with overlay overriding base
 #[pyfunction]
 fn merge_toml(py: Python<'_>, base: &str, overlay: &str) -> PyResult<PyObject> {
-    let merged = toml::merge_toml(base, overlay)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let merged =
+        toml::merge_toml(base, overlay).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    let json_str = serde_json::to_string(&merged)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_str =
+        serde_json::to_string(&merged).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     let json_module = py.import_bound("json")?;
     let result = json_module.call_method1("loads", (json_str,))?;
@@ -381,11 +383,11 @@ fn merge_toml(py: Python<'_>, base: &str, overlay: &str) -> PyResult<PyObject> {
 /// Parse TOON (Token Oriented Object Notation) string to a Python dict
 #[pyfunction]
 fn parse_toon(py: Python<'_>, toon_str: &str) -> PyResult<PyObject> {
-    let json_value = toon::parse_toon(toon_str)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_value =
+        toon::parse_toon(toon_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    let json_str = serde_json::to_string(&json_value)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_str =
+        serde_json::to_string(&json_value).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     let json_module = py.import_bound("json")?;
     let result = json_module.call_method1("loads", (json_str,))?;
@@ -396,12 +398,10 @@ fn parse_toon(py: Python<'_>, toon_str: &str) -> PyResult<PyObject> {
 #[pyfunction]
 fn to_toon(py: Python<'_>, obj: PyObject) -> PyResult<String> {
     let json_module = py.import_bound("json")?;
-    let json_str: String = json_module
-        .call_method1("dumps", (obj,))?
-        .extract()?;
+    let json_str: String = json_module.call_method1("dumps", (obj,))?.extract()?;
 
-    let json_value: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     Ok(toon::to_toon(&json_value))
 }
@@ -419,12 +419,10 @@ fn validate_toon(toon_str: &str) -> PyResult<bool> {
 #[pyfunction]
 fn json_to_toon(py: Python<'_>, obj: PyObject) -> PyResult<String> {
     let json_module = py.import_bound("json")?;
-    let json_str: String = json_module
-        .call_method1("dumps", (obj,))?
-        .extract()?;
+    let json_str: String = json_module.call_method1("dumps", (obj,))?.extract()?;
 
-    let json_value: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let json_value: serde_json::Value =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     Ok(toon::json_to_toon(&json_value))
 }
