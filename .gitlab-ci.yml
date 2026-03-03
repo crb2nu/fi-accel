@@ -67,6 +67,7 @@ build:wasm:
   before_script:
     - apt-get update && apt-get install -y ca-certificates
     - update-ca-certificates
+    - export RUSTUP_USE_CURL=1
     - rustup target add wasm32-unknown-unknown
     - cargo install wasm-pack --version ${WASM_PACK_VERSION} --locked || true
   script:
