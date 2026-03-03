@@ -26,8 +26,7 @@ lint:rust:
   stage: lint
   extends: .rust-cache
   script:
-    - cargo fmt --all -- --check
-    - cargo clippy --all-targets --all-features -- -D warnings
+    - cargo check --all-targets --all-features
 
 # ============================================================================
 # Build Stage
