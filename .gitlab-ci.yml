@@ -1,6 +1,6 @@
 # fi-accel CI - Rust core + PyO3 + WASM bindings
 variables:
-  RUST_VERSION: "1.83"
+  RUST_VERSION: "1.85"
   WASM_PACK_VERSION: "0.13.1"
   PYTHON_VERSION: "3.11"
 
