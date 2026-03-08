@@ -16,8 +16,10 @@ pub mod diff;
 pub mod embedding;
 pub mod json;
 pub mod log;
+pub mod capabilities;
 pub mod toml;
 pub mod toon;
+pub mod transport;
 
 #[cfg(feature = "tokenizer")]
 pub mod tokenizer;
@@ -28,10 +30,15 @@ pub mod chunker;
 // Re-export commonly used types
 pub use diff::{DiffError, FuzzyMatcher, PatchResult};
 pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
+pub use capabilities::{capabilities, CapabilitySet};
 pub use json::parse_ndjson;
 pub use log::LogReader;
 pub use toml::{json_to_toml, merge_toml, parse_toml, validate_toml};
 pub use toon::{json_to_toon, parse_toon, to_toon, validate_toon};
+pub use transport::{
+    extract_mcp_http_meta, parse_jsonrpc_lines, parse_sse_events, serialize_jsonrpc_lines,
+    McpHttpMeta, SseEvent, TransportError,
+};
 
 #[cfg(feature = "tokenizer")]
 pub use tokenizer::{count_tokens, split_by_tokens, truncate_to_tokens, Tokenizer};

@@ -343,3 +343,18 @@ pub fn detect_content_type(file_path: &str) -> String {
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+/// Report the capabilities exposed by the WASM binding.
+#[wasm_bindgen]
+pub fn capabilities() -> JsValue {
+    serde_wasm_bindgen::to_value(&serde_json::json!({
+        "tokenizer": false,
+        "simd_json": true,
+        "transport": false,
+        "chunker_code": false,
+        "chunker_markdown": true,
+        "chunker_text": true,
+        "ffi_available": false,
+    }))
+    .unwrap_or(JsValue::NULL)
+}

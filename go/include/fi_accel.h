@@ -42,26 +42,13 @@ typedef enum FiErrorCode {
 typedef struct FiTokenizer FiTokenizer;
 
 /**
- * Rust-owned byte buffer returned to the caller
- *
- * Must be freed with `fi_buffer_free`.
+ * Error information written by FFI functions
  */
-typedef struct FiBuffer {
-    uint8_t *data;
-    uintptr_t len;
-    uintptr_t capacity;
-} FiBuffer;
-
-/**
- * Array of u32 token IDs returned to the caller
- *
- * Must be freed with `fi_token_array_free`.
- */
-typedef struct FiTokenArray {
-    uint32_t *data;
-    uintptr_t len;
-    uintptr_t capacity;
-} FiTokenArray;
+typedef struct FiError {
+    enum FiErrorCode code;
+    uint8_t message[256];
+    uint32_t message_len;
+} FiError;
 
 /**
  * Top-k similarity result entry
@@ -94,37 +81,166 @@ typedef struct FiFloatArray {
 } FiFloatArray;
 
 /**
- * Error information written by FFI functions
+ * Rust-owned byte buffer returned to the caller
+ *
+ * Must be freed with `fi_buffer_free`.
  */
-typedef struct FiError {
-    enum FiErrorCode code;
-    uint8_t message[256];
-    uint32_t message_len;
-} FiError;
+typedef struct FiBuffer {
+    uint8_t *data;
+    uintptr_t len;
+    uintptr_t capacity;
+} FiBuffer;
+
+/**
+ * Array of u32 token IDs returned to the caller
+ *
+ * Must be freed with `fi_token_array_free`.
+ */
+typedef struct FiTokenArray {
+    uint32_t *data;
+    uintptr_t len;
+    uintptr_t capacity;
+} FiTokenArray;
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
 /**
- * Free a FiBuffer allocated by fi-accel
+ * Compute string similarity between two UTF-8 strings using Myers diff.
+ *
+ * Returns a value in [0.0, 1.0] where 1.0 means identical.
+ * Returns 0.0 and sets error on invalid input.
  */
-void fi_buffer_free(struct FiBuffer buf);
+float fi_string_similarity(const char *a, const char *b, struct FiError *err);
 
 /**
- * Free a FiTokenArray allocated by fi-accel
+ * Compute line-level similarity between two multiline UTF-8 strings.
+ *
+ * Each string is treated as a sequence of lines (split by newline).
+ * Returns a value in [0.0, 1.0] where 1.0 means identical.
  */
-void fi_token_array_free(struct FiTokenArray arr);
+float fi_line_similarity(const char *a, const char *b, struct FiError *err);
 
 /**
- * Free a FiTopKResult allocated by fi-accel
+ * Compute cosine similarity between two f32 vectors
+ *
+ * Both vectors must have the same length `dim`.
+ * Vectors should be pre-normalized for best results.
  */
-void fi_top_k_result_free(struct FiTopKResult res);
+float fi_cosine_similarity(const float *a, const float *b, uintptr_t dim, struct FiError *err);
 
 /**
- * Free a FiFloatArray allocated by fi-accel
+ * Compute dot product between two f32 vectors
  */
-void fi_float_array_free(struct FiFloatArray arr);
+float fi_dot_product(const float *a, const float *b, uintptr_t dim, struct FiError *err);
+
+/**
+ * Normalize a vector in-place to unit length (L2 normalization)
+ */
+void fi_normalize_l2(float *v, uintptr_t dim, struct FiError *err);
+
+/**
+ * Find top-k most similar vectors to a query
+ *
+ * - `query`: query vector of length `dim`
+ * - `candidates`: flat array of `num_candidates * dim` floats
+ * - `num_candidates`: number of candidate vectors
+ * - `dim`: vector dimensionality
+ * - `k`: number of results to return
+ *
+ * Returns a FiTopKResult that must be freed with `fi_top_k_result_free`.
+ */
+struct FiTopKResult fi_top_k_similar(const float *query,
+                                     const float *candidates,
+                                     uintptr_t num_candidates,
+                                     uintptr_t dim,
+                                     uintptr_t k,
+                                     struct FiError *err);
+
+/**
+ * Compute cosine similarity matrix between two sets of vectors
+ *
+ * - `a`: flat array of `num_a * dim` floats
+ * - `b`: flat array of `num_b * dim` floats
+ * - `num_a`, `num_b`: number of vectors in each set
+ * - `dim`: vector dimensionality
+ *
+ * Returns a flat FiFloatArray of `num_a * num_b` floats (row-major).
+ * Must be freed with `fi_float_array_free`.
+ */
+struct FiFloatArray fi_cosine_similarity_matrix(const float *a,
+                                                const float *b,
+                                                uintptr_t num_a,
+                                                uintptr_t num_b,
+                                                uintptr_t dim,
+                                                struct FiError *err);
+
+/**
+ * Compute the centroid (average) of a set of embeddings
+ *
+ * - `embeddings`: flat array of `num_embeddings * dim` floats
+ * - `num_embeddings`: number of vectors
+ * - `dim`: vector dimensionality
+ *
+ * Returns a FiFloatArray of length `dim`.
+ * Must be freed with `fi_float_array_free`.
+ */
+struct FiFloatArray fi_compute_centroid(const float *embeddings,
+                                        uintptr_t num_embeddings,
+                                        uintptr_t dim,
+                                        struct FiError *err);
+
+/**
+ * Parse newline-delimited JSON (NDJSON) data
+ *
+ * - `data`: raw bytes containing NDJSON
+ * - `data_len`: length of data in bytes
+ *
+ * Returns a FiBuffer containing the parsed JSON as a JSON array string.
+ * The caller should parse the returned string as a JSON array.
+ * Must be freed with `fi_buffer_free`.
+ */
+struct FiBuffer fi_parse_ndjson(const uint8_t *data, uintptr_t data_len, struct FiError *err);
+
+/**
+ * Serialize values to NDJSON format
+ *
+ * - `json_array`: a JSON array string to convert to NDJSON
+ * - `json_array_len`: length in bytes
+ *
+ * Returns a FiBuffer containing newline-delimited JSON.
+ * Must be freed with `fi_buffer_free`.
+ */
+struct FiBuffer fi_to_ndjson(const uint8_t *json_array,
+                             uintptr_t json_array_len,
+                             struct FiError *err);
+
+/**
+ * Parse newline-delimited JSON-RPC messages.
+ */
+struct FiBuffer fi_parse_jsonrpc_lines(const uint8_t *data,
+                                       uintptr_t data_len,
+                                       struct FiError *err);
+
+/**
+ * Serialize JSON-RPC messages from a JSON array into line-delimited framing.
+ */
+struct FiBuffer fi_serialize_jsonrpc_lines(const uint8_t *json_array,
+                                           uintptr_t json_array_len,
+                                           struct FiError *err);
+
+/**
+ * Parse Server-Sent Events into a JSON array of transport events.
+ */
+struct FiBuffer fi_parse_sse_events(const uint8_t *data, uintptr_t data_len, struct FiError *err);
+
+/**
+ * Extract MCP Streamable HTTP metadata from a raw header block.
+ */
+struct FiBuffer fi_extract_mcp_http_meta(const uint8_t *headers,
+                                         uintptr_t headers_len,
+                                         struct FiError *err);
 
 /**
  * Create a new tokenizer for the given model name
@@ -179,105 +295,24 @@ struct FiBuffer fi_tokenizer_truncate(const struct FiTokenizer *tok,
                                       struct FiError *err);
 
 /**
- * Compute cosine similarity between two f32 vectors
- *
- * Both vectors must have the same length `dim`.
- * Vectors should be pre-normalized for best results.
+ * Free a FiBuffer allocated by fi-accel
  */
-float fi_cosine_similarity(const float *a, const float *b, uintptr_t dim, struct FiError *err);
+void fi_buffer_free(struct FiBuffer buf);
 
 /**
- * Compute dot product between two f32 vectors
+ * Free a FiTokenArray allocated by fi-accel
  */
-float fi_dot_product(const float *a, const float *b, uintptr_t dim, struct FiError *err);
+void fi_token_array_free(struct FiTokenArray arr);
 
 /**
- * Normalize a vector in-place to unit length (L2 normalization)
+ * Free a FiTopKResult allocated by fi-accel
  */
-void fi_normalize_l2(float *v, uintptr_t dim, struct FiError *err);
+void fi_top_k_result_free(struct FiTopKResult res);
 
 /**
- * Find top-k most similar vectors to a query
- *
- * - `query`: query vector of length `dim`
- * - `candidates`: flat array of `num_candidates * dim` floats
- * - `num_candidates`: number of candidate vectors
- * - `dim`: vector dimensionality
- * - `k`: number of results to return
- *
- * Returns a FiTopKResult that must be freed with `fi_top_k_result_free`.
+ * Free a FiFloatArray allocated by fi-accel
  */
-struct FiTopKResult fi_top_k_similar(const float *query,
-                                     const float *candidates,
-                                     uintptr_t num_candidates,
-                                     uintptr_t dim,
-                                     uintptr_t k,
-                                     struct FiError *err);
-
-/**
- * Compute string similarity between two UTF-8 strings using Myers diff.
- *
- * Returns a value in [0.0, 1.0] where 1.0 means identical.
- * Returns 0.0 and sets error on invalid input.
- */
-float fi_string_similarity(const char *a, const char *b, struct FiError *err);
-
-/**
- * Compute line-level similarity between two multiline UTF-8 strings.
- *
- * Each string is treated as a sequence of lines (split by newline).
- * Returns a value in [0.0, 1.0] where 1.0 means identical.
- */
-float fi_line_similarity(const char *a, const char *b, struct FiError *err);
-
-/**
- * Compute cosine similarity matrix between two sets of vectors
- *
- * - `a`: flat array of `num_a * dim` floats
- * - `b`: flat array of `num_b * dim` floats
- *
- * Returns a flat FiFloatArray of `num_a * num_b` floats (row-major).
- * Must be freed with `fi_float_array_free`.
- */
-struct FiFloatArray fi_cosine_similarity_matrix(const float *a,
-                                                 const float *b,
-                                                 uintptr_t num_a,
-                                                 uintptr_t num_b,
-                                                 uintptr_t dim,
-                                                 struct FiError *err);
-
-/**
- * Compute the centroid (average) of a set of embeddings
- *
- * - `embeddings`: flat array of `num_embeddings * dim` floats
- *
- * Returns a FiFloatArray of length `dim`.
- * Must be freed with `fi_float_array_free`.
- */
-struct FiFloatArray fi_compute_centroid(const float *embeddings,
-                                        uintptr_t num_embeddings,
-                                        uintptr_t dim,
-                                        struct FiError *err);
-
-/**
- * Parse newline-delimited JSON (NDJSON) data
- *
- * Returns a FiBuffer containing the parsed data as a JSON array string.
- * Must be freed with `fi_buffer_free`.
- */
-struct FiBuffer fi_parse_ndjson(const uint8_t *data,
-                                 uintptr_t data_len,
-                                 struct FiError *err);
-
-/**
- * Serialize a JSON array to NDJSON format
- *
- * Returns a FiBuffer containing newline-delimited JSON.
- * Must be freed with `fi_buffer_free`.
- */
-struct FiBuffer fi_to_ndjson(const uint8_t *json_array,
-                              uintptr_t json_array_len,
-                              struct FiError *err);
+void fi_float_array_free(struct FiFloatArray arr);
 
 #ifdef __cplusplus
 }  // extern "C"

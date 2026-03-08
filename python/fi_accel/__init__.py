@@ -9,6 +9,7 @@ used in LLM-based agent systems:
 - Fuzzy diff matching for patch application (10-100x faster for large files)
 - Efficient log streaming and filtering
 - SIMD JSON parsing
+- Syntax-aware chunking for code, markdown, and text
 
 Example usage:
     >>> from fi_accel import count_tokens, cosine_similarity_matrix
@@ -60,6 +61,18 @@ from fi_accel.fi_accel import (
 
 __version__ = "0.1.0"
 
+
+def capabilities():
+    return {
+        "tokenizer": True,
+        "simd_json": True,
+        "transport": False,
+        "chunker_code": True,
+        "chunker_markdown": True,
+        "chunker_text": True,
+        "ffi_available": True,
+    }
+
 __all__ = [
     # Tokenizer
     "count_tokens",
@@ -98,4 +111,5 @@ __all__ = [
     "chunk_auto",
     "chunk_batch",
     "detect_content_type",
+    "capabilities",
 ]

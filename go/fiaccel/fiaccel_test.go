@@ -108,9 +108,9 @@ func TestNormalizeL2(t *testing.T) {
 func TestTopKSimilar(t *testing.T) {
 	query := []float32{1, 0, 0}
 	candidates := [][]float32{
-		{1, 0, 0},    // Most similar
+		{1, 0, 0},     // Most similar
 		{0.5, 0.5, 0}, // Somewhat similar
-		{0, 1, 0},    // Orthogonal
+		{0, 1, 0},     // Orthogonal
 	}
 
 	entries, err := TopKSimilar(query, candidates, 2)

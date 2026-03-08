@@ -3,7 +3,7 @@
 //! Run with: cargo bench -p fi-accel-core
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use fi_accel_core::{diff, embedding, json, log};
+use fi_accel_core::{diff, embedding, json, log, transport};
 
 #[cfg(feature = "chunker")]
 use fi_accel_core::chunker;
@@ -49,7 +49,7 @@ fn bench_embedding(c: &mut Criterion) {
 
     // L2 normalization
     for size in [10, 100, 1000].iter() {
-        let mut embeddings: Vec<Vec<f32>> =
+        let embeddings: Vec<Vec<f32>> =
             (0..*size).map(|i| create_embedding(i as u32)).collect();
 
         group.bench_with_input(
@@ -147,7 +147,7 @@ fn bench_log(c: &mut Criterion) {
     });
 
     // Append
-    let mut reader = log::LogReader::new(&log_1k);
+    let reader = log::LogReader::new(&log_1k);
     let append_content = create_log(100);
     group.bench_function("append_100_lines", |bench| {
         bench.iter(|| {
@@ -215,6 +215,22 @@ fn bench_json(c: &mut Criterion) {
     let jsonrpc_100 = create_jsonrpc(100);
     group.bench_function("parse_jsonrpc_100", |bench| {
         bench.iter(|| json::parse_jsonrpc_batch(black_box(jsonrpc_100.as_bytes())))
+    });
+
+    group.bench_function("parse_jsonrpc_lines_100", |bench| {
+        bench.iter(|| transport::parse_jsonrpc_lines(black_box(jsonrpc_100.as_bytes())))
+    });
+
+    let jsonrpc_messages = transport::parse_jsonrpc_lines(jsonrpc_100.as_bytes()).unwrap();
+    group.bench_function("serialize_jsonrpc_lines_100", |bench| {
+        bench.iter(|| transport::serialize_jsonrpc_lines(black_box(&jsonrpc_messages)))
+    });
+
+    let sse_100 = (0..100)
+        .map(|i| format!("id: {}\nevent: message\ndata: payload {}\n\n", i, i))
+        .collect::<String>();
+    group.bench_function("parse_sse_events_100", |bench| {
+        bench.iter(|| transport::parse_sse_events(black_box(sse_100.as_bytes())))
     });
 
     group.finish();
