@@ -42,6 +42,17 @@ typedef enum FiErrorCode {
 typedef struct FiTokenizer FiTokenizer;
 
 /**
+ * Rust-owned byte buffer returned to the caller
+ *
+ * Must be freed with `fi_buffer_free`.
+ */
+typedef struct FiBuffer {
+    uint8_t *data;
+    uintptr_t len;
+    uintptr_t capacity;
+} FiBuffer;
+
+/**
  * Error information written by FFI functions
  */
 typedef struct FiError {
@@ -81,17 +92,6 @@ typedef struct FiFloatArray {
 } FiFloatArray;
 
 /**
- * Rust-owned byte buffer returned to the caller
- *
- * Must be freed with `fi_buffer_free`.
- */
-typedef struct FiBuffer {
-    uint8_t *data;
-    uintptr_t len;
-    uintptr_t capacity;
-} FiBuffer;
-
-/**
  * Array of u32 token IDs returned to the caller
  *
  * Must be freed with `fi_token_array_free`.
@@ -105,6 +105,52 @@ typedef struct FiTokenArray {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * Chunk source code using the Rust tree-sitter chunker.
+ */
+struct FiBuffer fi_chunk_code(const char *content,
+                              const char *language,
+                              uintptr_t max_tokens,
+                              uintptr_t overlap_tokens,
+                              const char *file_path,
+                              const char *model,
+                              struct FiError *err);
+
+/**
+ * Chunk markdown content.
+ */
+struct FiBuffer fi_chunk_markdown(const char *content,
+                                  uintptr_t max_tokens,
+                                  uintptr_t overlap_tokens,
+                                  const char *file_path,
+                                  const char *model,
+                                  struct FiError *err);
+
+/**
+ * Chunk plain text content.
+ */
+struct FiBuffer fi_chunk_text(const char *content,
+                              uintptr_t max_tokens,
+                              uintptr_t overlap_tokens,
+                              const char *file_path,
+                              const char *model,
+                              struct FiError *err);
+
+/**
+ * Detect content type from file path and chunk accordingly.
+ */
+struct FiBuffer fi_chunk_auto(const char *content,
+                              const char *file_path,
+                              uintptr_t max_tokens,
+                              uintptr_t overlap_tokens,
+                              const char *model,
+                              struct FiError *err);
+
+/**
+ * Detect content type from file path.
+ */
+struct FiBuffer fi_detect_content_type(const char *file_path, struct FiError *err);
 
 /**
  * Compute string similarity between two UTF-8 strings using Myers diff.

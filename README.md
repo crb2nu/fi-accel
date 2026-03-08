@@ -48,8 +48,8 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
 | TOON | full | full | unsupported | full |
-| chunker (code) | full | full | unsupported | unsupported |
-| chunker (markdown/text) | full | full | unsupported | full |
+| chunker (code) | full | full | full | unsupported |
+| chunker (markdown/text) | full | full | full | full |
 | runtime `capabilities()` | full | full | full | full |
 
 ## Usage
@@ -194,6 +194,9 @@ func main() {
 		"Mcp-Session-Id": []string{"abc123"},
 	})
 	fmt.Println(meta.AcceptsSSE)
+
+	chunks, _ := fiaccel.ChunkCode("def hello(name):\n    return name\n", "python", nil)
+	fmt.Println(chunks[0].SymbolKind)
 }
 ```
 

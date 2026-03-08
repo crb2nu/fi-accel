@@ -11,6 +11,7 @@
 //! - `FiError` is stack-allocated by the caller; Rust writes error code + message
 //! - Flat arrays (embeddings) use caller-provided output buffers where possible
 
+pub mod chunker;
 pub mod diff;
 pub mod embedding;
 pub mod json;
@@ -19,6 +20,9 @@ pub mod tokenizer;
 pub mod types;
 
 // Re-export free functions at top level for C visibility
+pub use chunker::{
+    fi_chunk_auto, fi_chunk_code, fi_chunk_markdown, fi_chunk_text, fi_detect_content_type,
+};
 pub use diff::{fi_line_similarity, fi_string_similarity};
 pub use embedding::{
     fi_compute_centroid, fi_cosine_similarity, fi_cosine_similarity_matrix, fi_dot_product,
