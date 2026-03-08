@@ -2,7 +2,7 @@
 //!
 //! Exposes high-performance Rust implementations to JavaScript via wasm-bindgen.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, toml, toon};
+use fi_accel_core::{chunker, diff, embedding, json, log, toml, toon, transport};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -218,6 +218,56 @@ pub fn parse_jsonrpc_batch_str(data: &str) -> JsValue {
     parse_jsonrpc_batch(data.as_bytes())
 }
 
+/// Parse JSON-RPC messages from line-delimited framing.
+#[wasm_bindgen]
+pub fn parse_jsonrpc_lines(data: &[u8]) -> Result<JsValue, JsValue> {
+    let messages =
+        transport::parse_jsonrpc_lines(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_wasm_bindgen::to_value(&messages).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Parse JSON-RPC messages from string framing.
+#[wasm_bindgen]
+pub fn parse_jsonrpc_lines_str(data: &str) -> Result<JsValue, JsValue> {
+    parse_jsonrpc_lines(data.as_bytes())
+}
+
+/// Serialize JSON-RPC messages into line-delimited framing.
+#[wasm_bindgen]
+pub fn serialize_jsonrpc_lines(messages: JsValue) -> Result<Vec<u8>, JsValue> {
+    let messages: Vec<json::JsonRpcMessage> =
+        serde_wasm_bindgen::from_value(messages).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    transport::serialize_jsonrpc_lines(&messages).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Parse SSE events from an event stream.
+#[wasm_bindgen]
+pub fn parse_sse_events(data: &[u8]) -> Result<JsValue, JsValue> {
+    let events =
+        transport::parse_sse_events(data).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_wasm_bindgen::to_value(&events).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Parse SSE events from string data.
+#[wasm_bindgen]
+pub fn parse_sse_events_str(data: &str) -> Result<JsValue, JsValue> {
+    parse_sse_events(data.as_bytes())
+}
+
+/// Extract MCP Streamable HTTP metadata from a raw header block.
+#[wasm_bindgen]
+pub fn extract_mcp_http_meta(headers: &[u8]) -> Result<JsValue, JsValue> {
+    let meta = transport::extract_mcp_http_meta(headers)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    serde_wasm_bindgen::to_value(&meta).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Extract MCP Streamable HTTP metadata from string headers.
+#[wasm_bindgen]
+pub fn extract_mcp_http_meta_str(headers: &str) -> Result<JsValue, JsValue> {
+    extract_mcp_http_meta(headers.as_bytes())
+}
+
 // ============================================================================
 // TOML Module
 // ============================================================================
@@ -350,7 +400,7 @@ pub fn capabilities() -> JsValue {
     serde_wasm_bindgen::to_value(&serde_json::json!({
         "tokenizer": false,
         "simd_json": true,
-        "transport": false,
+        "transport": true,
         "chunker_code": false,
         "chunker_markdown": true,
         "chunker_text": true,

@@ -2,7 +2,7 @@
 //!
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, tokenizer, toml, toon};
+use fi_accel_core::{chunker, diff, embedding, json, log, tokenizer, toml, toon, transport};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -277,6 +277,11 @@ impl LogReader {
 // JSON Module
 // ============================================================================
 
+fn json_str_to_py(py: Python<'_>, json_str: String) -> PyResult<PyObject> {
+    let json_module = py.import_bound("json")?;
+    Ok(json_module.call_method1("loads", (json_str,))?.unbind())
+}
+
 /// Parse newline-delimited JSON (NDJSON)
 #[pyfunction]
 fn parse_ndjson(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
@@ -321,6 +326,47 @@ fn parse_jsonrpc_batch(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
             Err(e) => Err(PyValueError::new_err(e.to_string())),
         })
         .collect()
+}
+
+/// Parse JSON-RPC messages from line-delimited framing.
+#[pyfunction]
+fn parse_jsonrpc_lines(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let messages =
+        transport::parse_jsonrpc_lines(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&messages).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+/// Serialize JSON-RPC messages to line-delimited framing.
+#[pyfunction]
+fn serialize_jsonrpc_lines(py: Python<'_>, messages: PyObject) -> PyResult<Vec<u8>> {
+    let json_module = py.import_bound("json")?;
+    let json_str: String = json_module.call_method1("dumps", (messages,))?.extract()?;
+    let messages: Vec<json::JsonRpcMessage> =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    transport::serialize_jsonrpc_lines(&messages)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Parse SSE events from an MCP event stream.
+#[pyfunction]
+fn parse_sse_events(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let events =
+        transport::parse_sse_events(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&events).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+/// Extract MCP Streamable HTTP metadata from a raw header block.
+#[pyfunction]
+fn extract_mcp_http_meta(py: Python<'_>, headers: &[u8]) -> PyResult<PyObject> {
+    let meta = transport::extract_mcp_http_meta(headers)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&meta).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
 }
 
 // ============================================================================
@@ -599,6 +645,20 @@ fn detect_content_type(file_path: &str) -> String {
     }
 }
 
+/// Report the capabilities exposed by the Python binding.
+#[pyfunction]
+fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
+    let dict = PyDict::new_bound(py);
+    dict.set_item("tokenizer", true)?;
+    dict.set_item("simd_json", true)?;
+    dict.set_item("transport", true)?;
+    dict.set_item("chunker_code", true)?;
+    dict.set_item("chunker_markdown", true)?;
+    dict.set_item("chunker_text", true)?;
+    dict.set_item("ffi_available", true)?;
+    Ok(dict.into())
+}
+
 // ============================================================================
 // Module Definition
 // ============================================================================
@@ -630,6 +690,10 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // JSON functions
     m.add_function(wrap_pyfunction!(parse_ndjson, m)?)?;
     m.add_function(wrap_pyfunction!(parse_jsonrpc_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_jsonrpc_lines, m)?)?;
+    m.add_function(wrap_pyfunction!(serialize_jsonrpc_lines, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_sse_events, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_mcp_http_meta, m)?)?;
 
     // TOML functions
     m.add_function(wrap_pyfunction!(parse_toml, m)?)?;
@@ -650,6 +714,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chunk_auto, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_batch, m)?)?;
     m.add_function(wrap_pyfunction!(detect_content_type, m)?)?;
+    m.add_function(wrap_pyfunction!(capabilities, m)?)?;
 
     Ok(())
 }

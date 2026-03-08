@@ -45,7 +45,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | diff | full | full | partial | partial |
 | log | full | full | unsupported | full |
 | JSON / JSON-RPC | full | full | partial | full |
-| transport | full | unsupported | full | unsupported |
+| transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
 | TOON | full | full | unsupported | full |
 | chunker (code) | full | full | unsupported | unsupported |

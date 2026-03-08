@@ -40,6 +40,10 @@ from fi_accel.fi_accel import (
     # JSON
     parse_ndjson,
     parse_jsonrpc_batch,
+    parse_jsonrpc_lines,
+    serialize_jsonrpc_lines,
+    parse_sse_events,
+    extract_mcp_http_meta,
     # TOML
     parse_toml,
     validate_toml,
@@ -57,21 +61,10 @@ from fi_accel.fi_accel import (
     chunk_auto,
     chunk_batch,
     detect_content_type,
+    capabilities,
 )
 
 __version__ = "0.1.0"
-
-
-def capabilities():
-    return {
-        "tokenizer": True,
-        "simd_json": True,
-        "transport": False,
-        "chunker_code": True,
-        "chunker_markdown": True,
-        "chunker_text": True,
-        "ffi_available": True,
-    }
 
 __all__ = [
     # Tokenizer
@@ -94,6 +87,10 @@ __all__ = [
     # JSON
     "parse_ndjson",
     "parse_jsonrpc_batch",
+    "parse_jsonrpc_lines",
+    "serialize_jsonrpc_lines",
+    "parse_sse_events",
+    "extract_mcp_http_meta",
     # TOML
     "parse_toml",
     "validate_toml",
