@@ -31,6 +31,11 @@ pub fn chunk_text(content: &str, config: &ChunkConfig) -> Vec<Chunk> {
                 parent_name: None,
                 signature: None,
                 docstring: None,
+                imports: None,
+                symbol_kind: Some(ChunkKind::Paragraph.as_str().to_string()),
+                container_name: None,
+                container_kind: Some("document".to_string()),
+                symbol_path: None,
             });
         } else {
             // Paragraph is too large — split by sentences
@@ -56,6 +61,11 @@ pub fn chunk_text(content: &str, config: &ChunkConfig) -> Vec<Chunk> {
                         parent_name: None,
                         signature: None,
                         docstring: None,
+                        imports: None,
+                        symbol_kind: Some(ChunkKind::Sentence.as_str().to_string()),
+                        container_name: None,
+                        container_kind: Some("document".to_string()),
+                        symbol_path: None,
                     });
                     buffer.clear();
                     buf_start_line = para.start_line + sent.line_offset;
@@ -84,6 +94,11 @@ pub fn chunk_text(content: &str, config: &ChunkConfig) -> Vec<Chunk> {
                     parent_name: None,
                     signature: None,
                     docstring: None,
+                    imports: None,
+                    symbol_kind: Some(ChunkKind::Sentence.as_str().to_string()),
+                    container_name: None,
+                    container_kind: Some("document".to_string()),
+                    symbol_path: None,
                 });
             }
         }
@@ -278,6 +293,8 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].kind, ChunkKind::Paragraph);
         assert_eq!(chunks[1].kind, ChunkKind::Paragraph);
+        assert_eq!(chunks[0].symbol_kind.as_deref(), Some("paragraph"));
+        assert_eq!(chunks[0].container_kind.as_deref(), Some("document"));
         assert!(chunks[0].content.contains("first"));
         assert!(chunks[1].content.contains("second"));
     }

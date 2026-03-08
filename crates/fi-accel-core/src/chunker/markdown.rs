@@ -3,7 +3,8 @@
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 
 use super::{
-    count_or_estimate_tokens, generate_chunk_id, Chunk, ChunkConfig, ChunkKind, ChunkerError,
+    count_or_estimate_tokens, generate_chunk_id, symbol_path, Chunk, ChunkConfig, ChunkKind,
+    ChunkerError,
 };
 
 /// Split markdown content into chunks at heading boundaries.
@@ -36,6 +37,11 @@ pub fn chunk_markdown(content: &str, config: &ChunkConfig) -> Result<Vec<Chunk>,
                 parent_name: None,
                 signature: None,
                 docstring: None,
+                imports: None,
+                symbol_kind: Some(ChunkKind::Section.as_str().to_string()),
+                container_name: None,
+                container_kind: Some("document".to_string()),
+                symbol_path: symbol_path(section.heading.as_deref(), None),
             });
         } else {
             // Section is too large — split at paragraph boundaries
@@ -197,6 +203,11 @@ fn split_large_section(section: &Section<'_>, config: &ChunkConfig) -> Vec<Chunk
                 parent_name: None,
                 signature: None,
                 docstring: None,
+                imports: None,
+                symbol_kind: Some(ChunkKind::Section.as_str().to_string()),
+                container_name: None,
+                container_kind: Some("document".to_string()),
+                symbol_path: symbol_path(section.heading.as_deref(), None),
             });
             buffer.clear();
             buf_start_line = current_line;
@@ -226,6 +237,11 @@ fn split_large_section(section: &Section<'_>, config: &ChunkConfig) -> Vec<Chunk
             parent_name: None,
             signature: None,
             docstring: None,
+            imports: None,
+            symbol_kind: Some(ChunkKind::Section.as_str().to_string()),
+            container_name: None,
+            container_kind: Some("document".to_string()),
+            symbol_path: symbol_path(section.heading.as_deref(), None),
         });
     }
 
@@ -257,6 +273,8 @@ mod tests {
         assert_eq!(chunks[0].name.as_deref(), Some("Title"));
         assert_eq!(chunks[1].name.as_deref(), Some("Section 1"));
         assert_eq!(chunks[2].name.as_deref(), Some("Section 2"));
+        assert_eq!(chunks[0].symbol_kind.as_deref(), Some("section"));
+        assert_eq!(chunks[0].container_kind.as_deref(), Some("document"));
     }
 
     #[test]

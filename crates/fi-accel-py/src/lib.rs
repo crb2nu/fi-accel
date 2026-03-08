@@ -490,6 +490,11 @@ fn chunk_to_pydict(py: Python<'_>, chunk: &chunker::Chunk) -> PyResult<PyObject>
     dict.set_item("parent_name", &chunk.parent_name)?;
     dict.set_item("signature", &chunk.signature)?;
     dict.set_item("docstring", &chunk.docstring)?;
+    dict.set_item("imports", &chunk.imports)?;
+    dict.set_item("symbol_kind", &chunk.symbol_kind)?;
+    dict.set_item("container_name", &chunk.container_name)?;
+    dict.set_item("container_kind", &chunk.container_kind)?;
+    dict.set_item("symbol_path", &chunk.symbol_path)?;
     Ok(dict.into())
 }
 

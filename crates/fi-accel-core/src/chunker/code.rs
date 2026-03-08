@@ -11,7 +11,8 @@ use super::parser::{
     is_class_def, is_function_def, node_text, parse_code,
 };
 use super::{
-    count_or_estimate_tokens, generate_chunk_id, Chunk, ChunkConfig, ChunkKind, ChunkerError,
+    count_or_estimate_tokens, generate_chunk_id, symbol_path, Chunk, ChunkConfig, ChunkKind,
+    ChunkerError,
 };
 
 /// Chunk source code using tree-sitter AST analysis.
@@ -57,6 +58,11 @@ pub fn chunk_code(
             parent_name: None,
             signature: None,
             docstring: None,
+            imports: Some(imports),
+            symbol_kind: Some(ChunkKind::Module.as_str().to_string()),
+            container_name: None,
+            container_kind: None,
+            symbol_path: None,
         });
     }
 
@@ -75,7 +81,7 @@ fn walk_tree(
 ) {
     // Handle function definitions
     if is_function_def(node, lang) {
-        let chunk = extract_function(node, content, lang, config, parent_name);
+        let chunk = extract_function(node, content, lang, config, imports, parent_name);
         chunks.push(chunk);
         return; // Don't recurse into function body
     }
@@ -112,6 +118,7 @@ fn extract_function(
     content: &str,
     lang: &Language,
     config: &ChunkConfig,
+    imports: &[String],
     parent_name: Option<&str>,
 ) -> Chunk {
     let name = get_node_name(node, content);
@@ -124,6 +131,8 @@ fn extract_function(
     } else {
         ChunkKind::Function
     };
+    let symbol_kind = kind.as_str().to_string();
+    let symbol_path = symbol_path(name.as_deref(), parent_name);
 
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
@@ -141,6 +150,11 @@ fn extract_function(
         parent_name: parent_name.map(|s| s.to_string()),
         signature,
         docstring,
+        imports: Some(imports.to_vec()),
+        symbol_kind: Some(symbol_kind),
+        container_name: parent_name.map(|s| s.to_string()),
+        container_kind: parent_name.map(|_| ChunkKind::Class.as_str().to_string()),
+        symbol_path,
     }
 }
 
@@ -159,6 +173,7 @@ fn extract_class(node: Node, content: &str, lang: &Language, config: &ChunkConfi
 
     let code = content[class_start..class_end].trim();
     let docstring = get_docstring(node, content, lang);
+    let symbol_path = symbol_path(name.as_deref(), None);
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
     let token_count = count_or_estimate_tokens(code, config.model.as_deref());
@@ -175,6 +190,11 @@ fn extract_class(node: Node, content: &str, lang: &Language, config: &ChunkConfi
         parent_name: None,
         signature: None,
         docstring,
+        imports: None,
+        symbol_kind: Some(ChunkKind::Class.as_str().to_string()),
+        container_name: None,
+        container_kind: Some(ChunkKind::Module.as_str().to_string()),
+        symbol_path,
     }
 }
 
@@ -205,7 +225,7 @@ fn extract_class_methods(
     content: &str,
     lang: &Language,
     config: &ChunkConfig,
-    _imports: &[String],
+    imports: &[String],
     class_name: Option<&str>,
     chunks: &mut Vec<Chunk>,
 ) {
@@ -218,7 +238,7 @@ fn extract_class_methods(
             for body_child in child.children(&mut body_cursor) {
                 if is_function_def(body_child, lang) {
                     let method_chunk =
-                        extract_function(body_child, content, lang, config, class_name);
+                        extract_function(body_child, content, lang, config, imports, class_name);
                     chunks.push(method_chunk);
                 }
             }
@@ -246,6 +266,9 @@ def hello(name: str) -> str:
         assert!(func.is_some(), "Should find hello function");
         let f = func.unwrap();
         assert_eq!(f.kind, ChunkKind::Function);
+        assert_eq!(f.symbol_kind.as_deref(), Some("function"));
+        assert_eq!(f.container_kind, None);
+        assert_eq!(f.symbol_path.as_deref(), Some("hello"));
         assert!(f
             .docstring
             .as_ref()
@@ -279,6 +302,12 @@ class Greeter:
 
         for method in &methods {
             assert_eq!(method.parent_name.as_deref(), Some("Greeter"));
+            assert_eq!(method.container_name.as_deref(), Some("Greeter"));
+            assert_eq!(method.container_kind.as_deref(), Some("class"));
+            assert!(method
+                .symbol_path
+                .as_deref()
+                .is_some_and(|path| path.starts_with("Greeter.")));
         }
     }
 
@@ -302,6 +331,7 @@ func SayHello(name string) string {
             .find(|c| c.name.as_deref() == Some("SayHello"));
         assert!(func.is_some());
         assert_eq!(func.unwrap().kind, ChunkKind::Function);
+        assert!(func.unwrap().imports.as_ref().is_some_and(|imports| !imports.is_empty()));
     }
 
     #[test]

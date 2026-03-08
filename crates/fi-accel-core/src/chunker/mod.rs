@@ -122,6 +122,29 @@ pub struct Chunk {
     /// Optional docstring
     #[serde(skip_serializing_if = "Option::is_none")]
     pub docstring: Option<String>,
+    /// Optional file-level import summary for indexing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imports: Option<Vec<String>>,
+    /// Optional semantic symbol kind for indexing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_kind: Option<String>,
+    /// Optional enclosing container name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_name: Option<String>,
+    /// Optional enclosing container kind
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container_kind: Option<String>,
+    /// Optional fully-qualified symbol path
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol_path: Option<String>,
+}
+
+pub(crate) fn symbol_path(name: Option<&str>, container_name: Option<&str>) -> Option<String> {
+    match (container_name, name) {
+        (Some(container), Some(name)) => Some(format!("{}.{}", container, name)),
+        (None, Some(name)) => Some(name.to_string()),
+        _ => None,
+    }
 }
 
 /// Generate a unique chunk ID from file path, line, and content

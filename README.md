@@ -109,6 +109,9 @@ code_chunks = chunk_code(source_code, "python")
 markdown_chunks = chunk_markdown(markdown_doc)
 text_chunks = chunk_text(notes)
 
+# Indexing metadata is additive on each chunk:
+# imports, symbol_kind, container_name, container_kind, symbol_path
+
 # Runtime capability report
 caps = capabilities()
 ```
