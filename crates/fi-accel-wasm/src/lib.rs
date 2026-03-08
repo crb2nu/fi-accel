@@ -257,8 +257,8 @@ pub fn parse_sse_events_str(data: &str) -> Result<JsValue, JsValue> {
 /// Extract MCP Streamable HTTP metadata from a raw header block.
 #[wasm_bindgen]
 pub fn extract_mcp_http_meta(headers: &[u8]) -> Result<JsValue, JsValue> {
-    let meta = transport::extract_mcp_http_meta(headers)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let meta =
+        transport::extract_mcp_http_meta(headers).map_err(|e| JsValue::from_str(&e.to_string()))?;
     serde_wasm_bindgen::to_value(&meta).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
@@ -370,6 +370,26 @@ pub fn chunk_text(content: &str, max_tokens: Option<usize>) -> Result<JsValue, J
     };
 
     let chunks = chunker::chunk_text(content, &config);
+
+    serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Auto-detect content type and chunk when supported by the WASM binding
+#[wasm_bindgen]
+pub fn chunk_auto(
+    content: &str,
+    file_path: &str,
+    max_tokens: Option<usize>,
+) -> Result<JsValue, JsValue> {
+    let config = chunker::ChunkConfig {
+        max_tokens: max_tokens.unwrap_or(512),
+        file_path: Some(file_path.to_string()),
+        ..chunker::ChunkConfig::default()
+    };
+
+    let content_type = chunker::detect_content_type(file_path);
+    let chunks = chunker::chunk(content, content_type, &config)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
     serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsValue::from_str(&e.to_string()))
 }

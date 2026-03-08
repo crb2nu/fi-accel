@@ -129,6 +129,7 @@ import {
   merge_toml,
   parse_toon,
   to_toon,
+  chunk_auto,
   chunk_markdown,
   chunk_text,
   detect_content_type,
@@ -159,6 +160,7 @@ const data = parse_toon("key: value\ncount: 42");
 const toonStr = to_toon({ name: "test", items: [1, 2, 3] });
 
 // Chunking
+const autoChunks = chunk_auto(markdownDoc, "README.md");
 const docChunks = chunk_markdown(markdownDoc);
 const noteChunks = chunk_text(notes);
 const kind = detect_content_type("src/example.ts");
