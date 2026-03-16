@@ -15,19 +15,26 @@ type Chunk struct {
 	ID            string   `json:"id"`
 	Content       string   `json:"content"`
 	Kind          string   `json:"kind"`
+	ChunkType     string   `json:"chunk_type"`
 	Language      string   `json:"language"`
+	FilePath      *string  `json:"file_path,omitempty"`
 	StartLine     int      `json:"start_line"`
 	EndLine       int      `json:"end_line"`
+	StartColumn   int      `json:"start_column"`
+	EndColumn     int      `json:"end_column"`
 	TokenCount    int      `json:"token_count"`
 	Name          *string  `json:"name,omitempty"`
 	ParentName    *string  `json:"parent_name,omitempty"`
 	Signature     *string  `json:"signature,omitempty"`
 	Docstring     *string  `json:"docstring,omitempty"`
 	Imports       []string `json:"imports,omitempty"`
+	ParentType    *string  `json:"parent_type,omitempty"`
 	SymbolKind    *string  `json:"symbol_kind,omitempty"`
 	ContainerName *string  `json:"container_name,omitempty"`
 	ContainerKind *string  `json:"container_kind,omitempty"`
 	SymbolPath    *string  `json:"symbol_path,omitempty"`
+	Calls         []string `json:"calls,omitempty"`
+	Definitions   []string `json:"definitions,omitempty"`
 }
 
 // ChunkCode chunks source code using the Rust tree-sitter chunker.
