@@ -2,7 +2,7 @@
 //!
 //! Exposes high-performance Rust implementations to JavaScript via wasm-bindgen.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, toml, toon, transport};
+use fi_accel_core::{chunker, diff, embedding, json, log, surface, toml, toon, transport};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -97,6 +97,22 @@ pub struct WasmLogReader {
     inner: log::LogReader,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct WasmSurfaceLogFilter {
+    #[serde(default)]
+    pub levels: Vec<surface::SurfaceLogLevel>,
+    pub search_term: Option<String>,
+    #[serde(default)]
+    pub search_regex: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WasmSurfaceLogAnalysisInput {
+    pub lines: Vec<String>,
+    #[serde(default)]
+    pub filter: Option<WasmSurfaceLogFilter>,
+}
+
 #[wasm_bindgen]
 impl WasmLogReader {
     /// Create a new log reader from initial content
@@ -154,6 +170,94 @@ impl WasmLogReader {
     pub fn all_lines(&self) -> Vec<String> {
         self.inner.all_lines().to_vec()
     }
+}
+
+// ============================================================================
+// Surface Helpers
+// ============================================================================
+
+/// Detect a log level using FlexDeck-inspired heuristics.
+#[wasm_bindgen]
+pub fn surface_detect_log_level(line: &str) -> String {
+    match surface::detect_log_level(line) {
+        surface::SurfaceLogLevel::Error => "error",
+        surface::SurfaceLogLevel::Warn => "warn",
+        surface::SurfaceLogLevel::Info => "info",
+        surface::SurfaceLogLevel::Debug => "debug",
+    }
+    .to_string()
+}
+
+/// Analyze a batch of log lines for filter and search matches.
+#[wasm_bindgen]
+pub fn surface_analyze_logs(payload: JsValue) -> Result<JsValue, JsValue> {
+    let input: WasmSurfaceLogAnalysisInput =
+        serde_wasm_bindgen::from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let filter = input
+        .filter
+        .map(|value| surface::SurfaceLogFilter {
+            levels: value.levels,
+            search_term: value.search_term,
+            search_regex: value.search_regex,
+        })
+        .unwrap_or_default();
+    let matches = surface::analyze_log_lines(&input.lines, &filter);
+    serde_wasm_bindgen::to_value(&matches).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Check whether a label set matches a selector map.
+#[wasm_bindgen]
+pub fn surface_matches_label_selector(selector: JsValue, labels: JsValue) -> Result<bool, JsValue> {
+    let selector: std::collections::HashMap<String, String> =
+        serde_wasm_bindgen::from_value(selector).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let labels: std::collections::HashMap<String, String> =
+        serde_wasm_bindgen::from_value(labels).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    Ok(surface::matches_label_selector(&labels, &selector))
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WasmLabelSelectorFilterInput {
+    pub selector: std::collections::HashMap<String, String>,
+    pub label_sets: Vec<std::collections::HashMap<String, String>>,
+}
+
+/// Return matching indexes for a selector across many label sets.
+#[wasm_bindgen]
+pub fn surface_filter_label_selector(payload: JsValue) -> Result<JsValue, JsValue> {
+    let input: WasmLabelSelectorFilterInput =
+        serde_wasm_bindgen::from_value(payload).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let matches = surface::filter_label_selector_matches(&input.label_sets, &input.selector);
+    serde_wasm_bindgen::to_value(&matches).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Normalize CI job status tokens into a small stable vocabulary.
+#[wasm_bindgen]
+pub fn surface_normalize_ci_job_status(status: &str) -> String {
+    match surface::normalize_ci_job_status(status) {
+        surface::SurfaceCiStatus::Pending => "pending",
+        surface::SurfaceCiStatus::Running => "running",
+        surface::SurfaceCiStatus::Success => "success",
+        surface::SurfaceCiStatus::Failed => "failed",
+        surface::SurfaceCiStatus::Manual => "manual",
+        surface::SurfaceCiStatus::Skipped => "skipped",
+        surface::SurfaceCiStatus::Canceled => "canceled",
+    }
+    .to_string()
+}
+
+/// Normalize CI pipeline status tokens into a small stable vocabulary.
+#[wasm_bindgen]
+pub fn surface_normalize_ci_pipeline_status(status: &str) -> String {
+    match surface::normalize_ci_pipeline_status(status) {
+        surface::SurfaceCiStatus::Pending => "pending",
+        surface::SurfaceCiStatus::Running => "running",
+        surface::SurfaceCiStatus::Success => "success",
+        surface::SurfaceCiStatus::Failed => "failed",
+        surface::SurfaceCiStatus::Manual => "manual",
+        surface::SurfaceCiStatus::Skipped => "skipped",
+        surface::SurfaceCiStatus::Canceled => "canceled",
+    }
+    .to_string()
 }
 
 // ============================================================================

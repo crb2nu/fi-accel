@@ -19,6 +19,7 @@ pub mod log;
 pub mod capabilities;
 pub mod toml;
 pub mod toon;
+pub mod surface;
 pub mod transport;
 
 #[cfg(feature = "tokenizer")]
@@ -33,6 +34,11 @@ pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
 pub use capabilities::{capabilities, CapabilitySet};
 pub use json::parse_ndjson;
 pub use log::LogReader;
+pub use surface::{
+    analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
+    normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,
+    SurfaceLogLevel, SurfaceLogMatch,
+};
 pub use toml::{json_to_toml, merge_toml, parse_toml, validate_toml};
 pub use toon::{json_to_toon, parse_toon, to_toon, validate_toon};
 pub use transport::{
