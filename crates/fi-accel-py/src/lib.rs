@@ -482,19 +482,26 @@ fn chunk_to_pydict(py: Python<'_>, chunk: &chunker::Chunk) -> PyResult<PyObject>
     dict.set_item("id", &chunk.id)?;
     dict.set_item("content", &chunk.content)?;
     dict.set_item("kind", chunk.kind.as_str())?;
+    dict.set_item("chunk_type", &chunk.chunk_type)?;
     dict.set_item("language", &chunk.language)?;
+    dict.set_item("file_path", &chunk.file_path)?;
     dict.set_item("start_line", chunk.start_line)?;
     dict.set_item("end_line", chunk.end_line)?;
+    dict.set_item("start_column", chunk.start_column)?;
+    dict.set_item("end_column", chunk.end_column)?;
     dict.set_item("token_count", chunk.token_count)?;
     dict.set_item("name", &chunk.name)?;
     dict.set_item("parent_name", &chunk.parent_name)?;
     dict.set_item("signature", &chunk.signature)?;
     dict.set_item("docstring", &chunk.docstring)?;
     dict.set_item("imports", &chunk.imports)?;
+    dict.set_item("parent_type", &chunk.parent_type)?;
     dict.set_item("symbol_kind", &chunk.symbol_kind)?;
     dict.set_item("container_name", &chunk.container_name)?;
     dict.set_item("container_kind", &chunk.container_kind)?;
     dict.set_item("symbol_path", &chunk.symbol_path)?;
+    dict.set_item("calls", &chunk.calls)?;
+    dict.set_item("definitions", &chunk.definitions)?;
     Ok(dict.into())
 }
 

@@ -7,8 +7,8 @@ use tree_sitter::Node;
 
 use super::language::Language;
 use super::parser::{
-    class_body_kind, extract_imports, get_docstring, get_function_signature, get_node_name,
-    is_class_def, is_function_def, node_text, parse_code,
+    class_body_kind, extract_calls_from_node, extract_imports, get_docstring,
+    get_function_signature, get_node_name, is_class_def, is_function_def, node_text, parse_code,
 };
 use super::{
     count_or_estimate_tokens, generate_chunk_id, symbol_path, Chunk, ChunkConfig, ChunkKind,
@@ -50,19 +50,26 @@ pub fn chunk_code(
             id: generate_chunk_id(config.file_path.as_deref(), 1, content),
             content: content.to_string(),
             kind: ChunkKind::Module,
+            chunk_type: ChunkKind::Module.as_str().to_string(),
             language: lang.as_str().to_string(),
+            file_path: config.file_path.clone(),
             start_line: 1,
             end_line: content.matches('\n').count() + 1,
+            start_column: 0,
+            end_column: 0,
             token_count,
             name: None,
             parent_name: None,
             signature: None,
             docstring: None,
             imports: Some(imports),
+            parent_type: None,
             symbol_kind: Some(ChunkKind::Module.as_str().to_string()),
             container_name: None,
             container_kind: None,
             symbol_path: None,
+            calls: extract_calls_from_node(tree.root_node(), content, lang),
+            definitions: Vec::new(),
         });
     }
 
@@ -131,30 +138,42 @@ fn extract_function(
     } else {
         ChunkKind::Function
     };
+    let chunk_type = kind.as_str().to_string();
     let symbol_kind = kind.as_str().to_string();
     let symbol_path = symbol_path(name.as_deref(), parent_name);
+    let calls = extract_calls_from_node(node, content, lang);
+    let definitions = name.clone().map(|n| vec![n]).unwrap_or_default();
 
     let start_line = node.start_position().row + 1;
     let end_line = node.end_position().row + 1;
+    let start_column = node.start_position().column;
+    let end_column = node.end_position().column;
     let token_count = count_or_estimate_tokens(code, config.model.as_deref());
 
     Chunk {
         id: generate_chunk_id(config.file_path.as_deref(), start_line, code),
         content: code.to_string(),
         kind,
+        chunk_type,
         language: lang.as_str().to_string(),
+        file_path: config.file_path.clone(),
         start_line,
         end_line,
+        start_column,
+        end_column,
         token_count,
         name,
         parent_name: parent_name.map(|s| s.to_string()),
         signature,
         docstring,
         imports: Some(imports.to_vec()),
+        parent_type: parent_name.map(|_| ChunkKind::Class.as_str().to_string()),
         symbol_kind: Some(symbol_kind),
         container_name: parent_name.map(|s| s.to_string()),
         container_kind: parent_name.map(|_| ChunkKind::Class.as_str().to_string()),
         symbol_path,
+        calls,
+        definitions,
     }
 }
 
@@ -182,19 +201,26 @@ fn extract_class(node: Node, content: &str, lang: &Language, config: &ChunkConfi
         id: generate_chunk_id(config.file_path.as_deref(), start_line, code),
         content: code.to_string(),
         kind: ChunkKind::Class,
+        chunk_type: ChunkKind::Class.as_str().to_string(),
         language: lang.as_str().to_string(),
+        file_path: config.file_path.clone(),
         start_line,
         end_line,
+        start_column: node.start_position().column,
+        end_column: node.end_position().column,
         token_count,
-        name,
+        name: name.clone(),
         parent_name: None,
         signature: None,
         docstring,
         imports: None,
+        parent_type: None,
         symbol_kind: Some(ChunkKind::Class.as_str().to_string()),
         container_name: None,
         container_kind: Some(ChunkKind::Module.as_str().to_string()),
         symbol_path,
+        calls: Vec::new(),
+        definitions: name.map(|n| vec![n]).unwrap_or_default(),
     }
 }
 
@@ -266,9 +292,12 @@ def hello(name: str) -> str:
         assert!(func.is_some(), "Should find hello function");
         let f = func.unwrap();
         assert_eq!(f.kind, ChunkKind::Function);
+        assert_eq!(f.chunk_type, "function");
+        assert_eq!(f.start_column, 0);
         assert_eq!(f.symbol_kind.as_deref(), Some("function"));
         assert_eq!(f.container_kind, None);
         assert_eq!(f.symbol_path.as_deref(), Some("hello"));
+        assert_eq!(f.definitions, vec!["hello".to_string()]);
         assert!(f
             .docstring
             .as_ref()
@@ -292,7 +321,10 @@ class Greeter:
 
         let class = chunks.iter().find(|c| c.kind == ChunkKind::Class);
         assert!(class.is_some(), "Should find class");
-        assert_eq!(class.unwrap().name.as_deref(), Some("Greeter"));
+        let class = class.unwrap();
+        assert_eq!(class.name.as_deref(), Some("Greeter"));
+        assert_eq!(class.chunk_type, "class");
+        assert_eq!(class.definitions, vec!["Greeter".to_string()]);
 
         let methods: Vec<_> = chunks
             .iter()
@@ -302,6 +334,7 @@ class Greeter:
 
         for method in &methods {
             assert_eq!(method.parent_name.as_deref(), Some("Greeter"));
+            assert_eq!(method.parent_type.as_deref(), Some("class"));
             assert_eq!(method.container_name.as_deref(), Some("Greeter"));
             assert_eq!(method.container_kind.as_deref(), Some("class"));
             assert!(method
@@ -309,6 +342,32 @@ class Greeter:
                 .as_deref()
                 .is_some_and(|path| path.starts_with("Greeter.")));
         }
+    }
+
+    #[test]
+    fn test_chunk_code_emits_file_location_and_calls() {
+        let content = r#"
+def helper(name: str) -> str:
+    return name.upper()
+
+def hello(name: str) -> str:
+    return helper(name)
+"#;
+        let config = ChunkConfig {
+            file_path: Some("demo.py".to_string()),
+            ..ChunkConfig::default()
+        };
+
+        let chunks = chunk_code(content, &Language::Python, &config).unwrap();
+        let func = chunks
+            .iter()
+            .find(|c| c.name.as_deref() == Some("hello"))
+            .unwrap();
+
+        assert_eq!(func.file_path.as_deref(), Some("demo.py"));
+        assert_eq!(func.calls, vec!["helper".to_string()]);
+        assert_eq!(func.definitions, vec!["hello".to_string()]);
+        assert!(func.end_column > 0);
     }
 
     #[test]

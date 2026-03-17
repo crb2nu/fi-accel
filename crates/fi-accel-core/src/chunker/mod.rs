@@ -102,12 +102,24 @@ pub struct Chunk {
     pub content: String,
     /// Kind of chunk
     pub kind: ChunkKind,
+    /// Stable alias for downstream systems that expect `chunk_type`
+    #[serde(default)]
+    pub chunk_type: String,
     /// Language of the source content
     pub language: String,
+    /// Optional source file path
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
     /// Start line (1-indexed)
     pub start_line: usize,
     /// End line (1-indexed)
     pub end_line: usize,
+    /// Start column (0-indexed)
+    #[serde(default)]
+    pub start_column: usize,
+    /// End column (0-indexed)
+    #[serde(default)]
+    pub end_column: usize,
     /// Estimated or exact token count
     pub token_count: usize,
     /// Optional name (function name, class name, section heading)
@@ -125,6 +137,9 @@ pub struct Chunk {
     /// Optional file-level import summary for indexing
     #[serde(skip_serializing_if = "Option::is_none")]
     pub imports: Option<Vec<String>>,
+    /// Optional parent type for downstream code-intelligence models
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_type: Option<String>,
     /// Optional semantic symbol kind for indexing
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_kind: Option<String>,
@@ -137,6 +152,12 @@ pub struct Chunk {
     /// Optional fully-qualified symbol path
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol_path: Option<String>,
+    /// Optional call relationship hints for downstream indexing
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<String>,
+    /// Optional definitions emitted by this chunk
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub definitions: Vec<String>,
 }
 
 pub(crate) fn symbol_path(name: Option<&str>, container_name: Option<&str>) -> Option<String> {
