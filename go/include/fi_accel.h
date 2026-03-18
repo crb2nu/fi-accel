@@ -238,6 +238,24 @@ struct FiFloatArray fi_compute_centroid(const float *embeddings,
                                         struct FiError *err);
 
 /**
+ * Project NDJSON/JSONL event records into a normalized timeline shape.
+ */
+struct FiBuffer fi_project_eventlog(const uint8_t *data,
+                                    uintptr_t data_len,
+                                    const uint8_t *config_json,
+                                    uintptr_t config_json_len,
+                                    struct FiError *err);
+
+/**
+ * Summarize NDJSON/JSONL event records by event and actor dimensions.
+ */
+struct FiBuffer fi_summarize_eventlog(const uint8_t *data,
+                                      uintptr_t data_len,
+                                      const uint8_t *config_json,
+                                      uintptr_t config_json_len,
+                                      struct FiError *err);
+
+/**
  * Parse newline-delimited JSON (NDJSON) data
  *
  * - `data`: raw bytes containing NDJSON
@@ -261,32 +279,6 @@ struct FiBuffer fi_parse_ndjson(const uint8_t *data, uintptr_t data_len, struct 
 struct FiBuffer fi_to_ndjson(const uint8_t *json_array,
                              uintptr_t json_array_len,
                              struct FiError *err);
-
-/**
- * Parse newline-delimited JSON-RPC messages.
- */
-struct FiBuffer fi_parse_jsonrpc_lines(const uint8_t *data,
-                                       uintptr_t data_len,
-                                       struct FiError *err);
-
-/**
- * Serialize JSON-RPC messages from a JSON array into line-delimited framing.
- */
-struct FiBuffer fi_serialize_jsonrpc_lines(const uint8_t *json_array,
-                                           uintptr_t json_array_len,
-                                           struct FiError *err);
-
-/**
- * Parse Server-Sent Events into a JSON array of transport events.
- */
-struct FiBuffer fi_parse_sse_events(const uint8_t *data, uintptr_t data_len, struct FiError *err);
-
-/**
- * Extract MCP Streamable HTTP metadata from a raw header block.
- */
-struct FiBuffer fi_extract_mcp_http_meta(const uint8_t *headers,
-                                         uintptr_t headers_len,
-                                         struct FiError *err);
 
 /**
  * Create a new tokenizer for the given model name
@@ -339,6 +331,32 @@ struct FiBuffer fi_tokenizer_truncate(const struct FiTokenizer *tok,
                                       const char *text,
                                       uintptr_t max_tokens,
                                       struct FiError *err);
+
+/**
+ * Parse newline-delimited JSON-RPC messages.
+ */
+struct FiBuffer fi_parse_jsonrpc_lines(const uint8_t *data,
+                                       uintptr_t data_len,
+                                       struct FiError *err);
+
+/**
+ * Serialize JSON-RPC messages from a JSON array into line-delimited framing.
+ */
+struct FiBuffer fi_serialize_jsonrpc_lines(const uint8_t *json_array,
+                                           uintptr_t json_array_len,
+                                           struct FiError *err);
+
+/**
+ * Parse Server-Sent Events into a JSON array of transport events.
+ */
+struct FiBuffer fi_parse_sse_events(const uint8_t *data, uintptr_t data_len, struct FiError *err);
+
+/**
+ * Extract MCP Streamable HTTP metadata from a raw header block.
+ */
+struct FiBuffer fi_extract_mcp_http_meta(const uint8_t *headers,
+                                         uintptr_t headers_len,
+                                         struct FiError *err);
 
 /**
  * Free a FiBuffer allocated by fi-accel

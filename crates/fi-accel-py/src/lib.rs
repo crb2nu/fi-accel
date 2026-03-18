@@ -2,7 +2,9 @@
 //!
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, tokenizer, toml, toon, transport};
+use fi_accel_core::{
+    chunker, diff, embedding, eventlog, json, log, tokenizer, toml, toon, transport,
+};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -367,6 +369,60 @@ fn extract_mcp_http_meta(py: Python<'_>, headers: &[u8]) -> PyResult<PyObject> {
     json_str_to_py(py, payload)
 }
 
+/// Project NDJSON/JSONL event records into a normalized timeline shape.
+#[pyfunction]
+#[pyo3(signature = (data, timestamp_field = "timestamp", event_type_field = "event_type", actor_id_field = Some("agent_id".to_string()), actor_type_field = Some("agent_type".to_string()), data_field = None, limit = None))]
+fn project_eventlog(
+    py: Python<'_>,
+    data: &[u8],
+    timestamp_field: &str,
+    event_type_field: &str,
+    actor_id_field: Option<String>,
+    actor_type_field: Option<String>,
+    data_field: Option<String>,
+    limit: Option<usize>,
+) -> PyResult<PyObject> {
+    let config = eventlog::EventProjectionConfig {
+        timestamp_field: timestamp_field.to_string(),
+        event_type_field: event_type_field.to_string(),
+        actor_id_field,
+        actor_type_field,
+        data_field,
+        limit,
+    };
+    let events = eventlog::project_eventlog_ndjson(data, &config);
+    let payload =
+        serde_json::to_string(&events).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+/// Summarize NDJSON/JSONL event records by event and actor dimensions.
+#[pyfunction]
+#[pyo3(signature = (data, timestamp_field = "timestamp", event_type_field = "event_type", actor_id_field = Some("agent_id".to_string()), actor_type_field = Some("agent_type".to_string()), data_field = None, limit = None))]
+fn summarize_eventlog(
+    py: Python<'_>,
+    data: &[u8],
+    timestamp_field: &str,
+    event_type_field: &str,
+    actor_id_field: Option<String>,
+    actor_type_field: Option<String>,
+    data_field: Option<String>,
+    limit: Option<usize>,
+) -> PyResult<PyObject> {
+    let config = eventlog::EventProjectionConfig {
+        timestamp_field: timestamp_field.to_string(),
+        event_type_field: event_type_field.to_string(),
+        actor_id_field,
+        actor_type_field,
+        data_field,
+        limit,
+    };
+    let summary = eventlog::summarize_eventlog_ndjson(data, &config);
+    let payload =
+        serde_json::to_string(&summary).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
 // ============================================================================
 // TOML Module
 // ============================================================================
@@ -670,6 +726,7 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("tokenizer", true)?;
     dict.set_item("simd_json", true)?;
     dict.set_item("transport", true)?;
+    dict.set_item("eventlog", true)?;
     dict.set_item("chunker_code", true)?;
     dict.set_item("chunker_markdown", true)?;
     dict.set_item("chunker_text", true)?;
@@ -712,6 +769,8 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(serialize_jsonrpc_lines, m)?)?;
     m.add_function(wrap_pyfunction!(parse_sse_events, m)?)?;
     m.add_function(wrap_pyfunction!(extract_mcp_http_meta, m)?)?;
+    m.add_function(wrap_pyfunction!(project_eventlog, m)?)?;
+    m.add_function(wrap_pyfunction!(summarize_eventlog, m)?)?;
 
     // TOML functions
     m.add_function(wrap_pyfunction!(parse_toml, m)?)?;

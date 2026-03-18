@@ -44,6 +44,8 @@ from fi_accel.fi_accel import (
     serialize_jsonrpc_lines,
     parse_sse_events,
     extract_mcp_http_meta,
+    project_eventlog,
+    summarize_eventlog,
     # TOML
     parse_toml,
     validate_toml,
@@ -92,6 +94,8 @@ __all__ = [
     "serialize_jsonrpc_lines",
     "parse_sse_events",
     "extract_mcp_http_meta",
+    "project_eventlog",
+    "summarize_eventlog",
     # TOML
     "parse_toml",
     "validate_toml",

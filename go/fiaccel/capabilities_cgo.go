@@ -7,6 +7,7 @@ func runtimeCapabilities() CapabilitySet {
 		Tokenizer:       true,
 		SIMDJSON:        true,
 		Transport:       true,
+		Eventlog:        true,
 		ChunkerCode:     true,
 		ChunkerMarkdown: true,
 		ChunkerText:     true,

@@ -11,6 +11,7 @@ High-performance Rust acceleration library for agent/MCP workflows.
 - **Fuzzy Diff Matching**: Intelligent patch application for drifted files
 - **Log Streaming**: Efficient incremental log reading
 - **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
+- **Event Log Helpers**: Normalize and summarize JSONL timeline/audit streams
 - **Transport Helpers**: JSON-RPC stdio framing, SSE parsing, and MCP Streamable HTTP header extraction
 - **TOML Parsing**: Fast TOML parsing with JSON interop and config merging
 - **TOON Parsing**: Token Oriented Object Notation for efficient LLM serialization
@@ -46,6 +47,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | diff | full | full | partial | partial |
 | log | full | full | unsupported | full |
 | JSON / JSON-RPC | full | full | partial | full |
+| eventlog | full | full | full | full |
 | transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
 | TOON | full | full | unsupported | full |
@@ -66,6 +68,8 @@ from fi_accel import (
     FuzzyMatcher,
     LogReader,
     parse_jsonrpc_batch,
+    project_eventlog,
+    summarize_eventlog,
     parse_toml,
     merge_toml,
     parse_toon,
@@ -98,6 +102,15 @@ errors = reader.filter(r"ERROR|WARN")
 # JSON-RPC line parsing
 messages = parse_jsonrpc_batch(b'{"jsonrpc":"2.0","method":"ping","id":1}\n')
 
+# Event-log normalization and summary
+events = project_eventlog(
+    b'{"timestamp":"2026-03-18T10:00:00Z","status":"success","agent_id":"codex"}\n',
+    event_type_field="status",
+)
+summary = summarize_eventlog(
+    b'{"timestamp":"2026-03-18T10:00:00Z","event_type":"agent.started","agent_id":"codex"}\n'
+)
+
 # TOML parsing
 config = parse_toml(toml_string)  # Returns dict
 merged = merge_toml(base_config, override_config)  # Deep merge
@@ -127,6 +140,8 @@ import {
   WasmLogReader,
   parse_ndjson_str,
   parse_jsonrpc_batch_str,
+  project_eventlog_str,
+  summarize_eventlog_str,
   cosine_similarity,
   apply_fuzzy_patch,
   parse_toml,
@@ -148,6 +163,11 @@ const errors = reader.filter('ERROR');
 // JSON parsing
 const messages = parse_ndjson_str(ndjsonData);
 const rpcMessages = parse_jsonrpc_batch_str(jsonrpcLines);
+const timeline = project_eventlog_str(ndjsonData, {
+  event_type_field: 'status',
+  actor_id_field: 'agent_id',
+});
+const eventSummary = summarize_eventlog_str(ndjsonData, undefined);
 
 // Similarity
 const sim = cosine_similarity([1, 0, 0], [1, 0, 0]); // 1.0

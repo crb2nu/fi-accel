@@ -14,6 +14,7 @@
 pub mod chunker;
 pub mod diff;
 pub mod embedding;
+pub mod eventlog;
 pub mod json;
 pub mod tokenizer;
 pub mod transport;
@@ -28,6 +29,7 @@ pub use embedding::{
     fi_compute_centroid, fi_cosine_similarity, fi_cosine_similarity_matrix, fi_dot_product,
     fi_normalize_l2, fi_top_k_similar,
 };
+pub use eventlog::{fi_project_eventlog, fi_summarize_eventlog};
 pub use json::{fi_parse_ndjson, fi_to_ndjson};
 pub use tokenizer::{
     fi_tokenizer_count, fi_tokenizer_decode, fi_tokenizer_encode, fi_tokenizer_free,

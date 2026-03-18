@@ -2,7 +2,9 @@
 //!
 //! Exposes high-performance Rust implementations to JavaScript via wasm-bindgen.
 
-use fi_accel_core::{chunker, diff, embedding, json, log, surface, toml, toon, transport};
+use fi_accel_core::{
+    chunker, diff, embedding, eventlog, json, log, surface, toml, toon, transport,
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -372,6 +374,82 @@ pub fn extract_mcp_http_meta_str(headers: &str) -> Result<JsValue, JsValue> {
     extract_mcp_http_meta(headers.as_bytes())
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct WasmEventProjectionConfig {
+    pub timestamp_field: String,
+    pub event_type_field: String,
+    pub actor_id_field: Option<String>,
+    pub actor_type_field: Option<String>,
+    pub data_field: Option<String>,
+    pub limit: Option<usize>,
+}
+
+impl Default for WasmEventProjectionConfig {
+    fn default() -> Self {
+        let inner = eventlog::EventProjectionConfig::default();
+        Self {
+            timestamp_field: inner.timestamp_field,
+            event_type_field: inner.event_type_field,
+            actor_id_field: inner.actor_id_field,
+            actor_type_field: inner.actor_type_field,
+            data_field: inner.data_field,
+            limit: inner.limit,
+        }
+    }
+}
+
+/// Project NDJSON/JSONL event records into a normalized timeline shape.
+#[wasm_bindgen]
+pub fn project_eventlog(data: &[u8], config: JsValue) -> Result<JsValue, JsValue> {
+    let config: WasmEventProjectionConfig = if config.is_undefined() || config.is_null() {
+        WasmEventProjectionConfig::default()
+    } else {
+        serde_wasm_bindgen::from_value(config).map_err(|e| JsValue::from_str(&e.to_string()))?
+    };
+    let inner = eventlog::EventProjectionConfig {
+        timestamp_field: config.timestamp_field,
+        event_type_field: config.event_type_field,
+        actor_id_field: config.actor_id_field,
+        actor_type_field: config.actor_type_field,
+        data_field: config.data_field,
+        limit: config.limit,
+    };
+    let events = eventlog::project_eventlog_ndjson(data, &inner);
+    serde_wasm_bindgen::to_value(&events).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Project NDJSON/JSONL event records from a UTF-8 string.
+#[wasm_bindgen]
+pub fn project_eventlog_str(data: &str, config: JsValue) -> Result<JsValue, JsValue> {
+    project_eventlog(data.as_bytes(), config)
+}
+
+/// Summarize NDJSON/JSONL event records by event and actor dimensions.
+#[wasm_bindgen]
+pub fn summarize_eventlog(data: &[u8], config: JsValue) -> Result<JsValue, JsValue> {
+    let config: WasmEventProjectionConfig = if config.is_undefined() || config.is_null() {
+        WasmEventProjectionConfig::default()
+    } else {
+        serde_wasm_bindgen::from_value(config).map_err(|e| JsValue::from_str(&e.to_string()))?
+    };
+    let inner = eventlog::EventProjectionConfig {
+        timestamp_field: config.timestamp_field,
+        event_type_field: config.event_type_field,
+        actor_id_field: config.actor_id_field,
+        actor_type_field: config.actor_type_field,
+        data_field: config.data_field,
+        limit: config.limit,
+    };
+    let summary = eventlog::summarize_eventlog_ndjson(data, &inner);
+    serde_wasm_bindgen::to_value(&summary).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Summarize NDJSON/JSONL event records from a UTF-8 string.
+#[wasm_bindgen]
+pub fn summarize_eventlog_str(data: &str, config: JsValue) -> Result<JsValue, JsValue> {
+    summarize_eventlog(data.as_bytes(), config)
+}
+
 // ============================================================================
 // TOML Module
 // ============================================================================
@@ -525,6 +603,7 @@ pub fn capabilities() -> JsValue {
         "tokenizer": false,
         "simd_json": true,
         "transport": true,
+        "eventlog": true,
         "chunker_code": false,
         "chunker_markdown": true,
         "chunker_text": true,
