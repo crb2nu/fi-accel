@@ -17,9 +17,10 @@ pub mod embedding;
 pub mod json;
 pub mod log;
 pub mod capabilities;
+pub mod markdown;
+pub mod surface;
 pub mod toml;
 pub mod toon;
-pub mod surface;
 pub mod transport;
 
 #[cfg(feature = "tokenizer")]
@@ -34,6 +35,10 @@ pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
 pub use capabilities::{capabilities, CapabilitySet};
 pub use json::parse_ndjson;
 pub use log::LogReader;
+pub use markdown::{
+    extract_markdown_code_blocks, markdown_text_stats, markdown_to_text, strip_markdown_code_fence,
+    MarkdownCodeBlock, MarkdownTextStats, DEFAULT_READING_WPM,
+};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
     normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,
@@ -54,6 +59,9 @@ pub use chunker::{
     chunk, chunk_markdown, chunk_text, detect_content_type, Chunk, ChunkConfig, ChunkKind,
     ChunkerError, ContentType, Language,
 };
+
+#[cfg(feature = "tree-sitter")]
+pub use chunker::extract_calls;
 
 // FFI exports for C/Go integration
 #[cfg(feature = "ffi")]

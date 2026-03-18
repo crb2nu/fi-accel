@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 use super::language::Language;
 use super::ChunkerError;
+use std::collections::BTreeSet;
 use tree_sitter::{Node, Parser, Tree};
 
 /// Create a tree-sitter parser configured for the given language
@@ -224,6 +225,55 @@ pub fn get_docstring(node: Node, content: &str, lang: &Language) -> Option<Strin
     }
 }
 
+/// Extract function, method, and macro calls from source code.
+pub fn extract_calls(content: &str, lang: &Language) -> Result<Vec<String>, ChunkerError> {
+    let tree = parse_code(content, lang)?;
+    let mut calls = BTreeSet::new();
+    extract_calls_from_node(tree.root_node(), content, lang, &mut calls);
+    Ok(calls.into_iter().collect())
+}
+
+fn extract_calls_from_node(
+    node: Node,
+    content: &str,
+    lang: &Language,
+    calls: &mut BTreeSet<String>,
+) {
+    let call_types = match lang {
+        Language::Python => &["call"][..],
+        Language::TypeScript | Language::JavaScript => &["call_expression"][..],
+        Language::Go => &["call_expression"][..],
+        Language::Rust => &["call_expression", "macro_invocation"][..],
+    };
+
+    if call_types.contains(&node.kind()) {
+        if let Some(call_name) = extract_call_name(node, content, lang) {
+            calls.insert(call_name);
+        }
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        extract_calls_from_node(child, content, lang, calls);
+    }
+}
+
+fn extract_call_name(node: Node, content: &str, lang: &Language) -> Option<String> {
+    match lang {
+        Language::Python | Language::TypeScript | Language::JavaScript | Language::Go => node
+            .child_by_field_name("function")
+            .map(|n| node_text(n, content).to_string()),
+        Language::Rust => {
+            if node.kind() == "macro_invocation" {
+                node.child(0).map(|n| format!("{}!", node_text(n, content)))
+            } else {
+                node.child_by_field_name("function")
+                    .map(|n| node_text(n, content).to_string())
+            }
+        }
+    }
+}
+
 /// Extract import statements from source code
 pub fn extract_imports(content: &str, lang: &Language) -> Result<Vec<String>, ChunkerError> {
     let tree = parse_code(content, lang)?;
@@ -381,5 +431,28 @@ mod tests {
         let content = "import os\nfrom pathlib import Path\n\ndef main():\n    pass\n";
         let imports = extract_imports(content, &Language::Python).unwrap();
         assert_eq!(imports.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_calls_python() {
+        let content = r#"
+def greet(name):
+    print(helper(name))
+    self.logger.info(name)
+"#;
+        let calls = extract_calls(content, &Language::Python).unwrap();
+        assert_eq!(calls, vec!["helper", "print", "self.logger.info"]);
+    }
+
+    #[test]
+    fn test_extract_calls_rust_includes_macros() {
+        let content = r#"
+fn greet(name: &str) {
+    format!("Hello, {}", name);
+    println!("{}", name);
+}
+"#;
+        let calls = extract_calls(content, &Language::Rust).unwrap();
+        assert_eq!(calls, vec!["format!", "println!"]);
     }
 }

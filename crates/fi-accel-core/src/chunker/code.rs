@@ -422,6 +422,33 @@ impl Greeter {
     }
 
     #[test]
+    fn test_chunk_code_includes_call_edges() {
+        let content = r#"
+def hello(name):
+    message = format_name(name)
+    logger.info(message)
+    return emit(message)
+"#;
+        let config = ChunkConfig::default();
+        let chunks = chunk_code(content, &Language::Python, &config).unwrap();
+
+        let func = chunks
+            .iter()
+            .find(|c| c.name.as_deref() == Some("hello"))
+            .unwrap();
+        assert_eq!(
+            func.calls.as_deref(),
+            Some(
+                &[
+                    "emit".to_string(),
+                    "format_name".to_string(),
+                    "logger.info".to_string(),
+                ][..]
+            )
+        );
+    }
+
+    #[test]
     fn test_chunk_code_empty() {
         let config = ChunkConfig::default();
         let chunks = chunk_code("", &Language::Python, &config).unwrap();
