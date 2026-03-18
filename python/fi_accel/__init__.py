@@ -55,6 +55,7 @@ from fi_accel.fi_accel import (
     validate_toon,
     json_to_toon,
     # Chunker
+    extract_calls,
     chunk_code,
     chunk_markdown,
     chunk_text,
@@ -102,6 +103,7 @@ __all__ = [
     "validate_toon",
     "json_to_toon",
     # Chunker
+    "extract_calls",
     "chunk_code",
     "chunk_markdown",
     "chunk_text",

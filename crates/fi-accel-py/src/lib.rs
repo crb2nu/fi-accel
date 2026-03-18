@@ -505,6 +505,14 @@ fn chunk_to_pydict(py: Python<'_>, chunk: &chunker::Chunk) -> PyResult<PyObject>
     Ok(dict.into())
 }
 
+/// Extract function, method, and macro calls from source code.
+#[pyfunction]
+fn extract_calls(language: &str, content: &str) -> PyResult<Vec<String>> {
+    let lang = chunker::Language::from_str(language)
+        .ok_or_else(|| PyValueError::new_err(format!("Unsupported language: {}", language)))?;
+    chunker::extract_calls(content, &lang).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Chunk source code using tree-sitter AST analysis
 #[pyfunction]
 #[pyo3(signature = (content, language, max_tokens = 512, overlap_tokens = 50, file_path = None, model = None))]
@@ -720,6 +728,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(json_to_toon, m)?)?;
 
     // Chunker functions
+    m.add_function(wrap_pyfunction!(extract_calls, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_code, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_text, m)?)?;
