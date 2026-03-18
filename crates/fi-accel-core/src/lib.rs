@@ -15,6 +15,7 @@
 pub mod capabilities;
 pub mod diff;
 pub mod embedding;
+pub mod eventlog;
 pub mod json;
 pub mod log;
 pub mod surface;
@@ -32,6 +33,10 @@ pub mod chunker;
 pub use capabilities::{capabilities, CapabilitySet};
 pub use diff::{DiffError, FuzzyMatcher, PatchResult};
 pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
+pub use eventlog::{
+    project_eventlog_ndjson, project_events, summarize_eventlog_ndjson, summarize_events,
+    EventProjectionConfig, EventRecord, EventSummary,
+};
 pub use json::parse_ndjson;
 pub use log::LogReader;
 pub use surface::{
