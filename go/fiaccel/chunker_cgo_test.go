@@ -37,9 +37,9 @@ func TestChunkCode(t *testing.T) {
 		t.Fatalf("expected call metadata: %+v", *chunk)
 	}
 	expectedCalls := map[string]bool{
-		"emit": false,
+		"emit":        false,
 		"format_name": false,
-		"helper": false,
+		"helper":      false,
 		"logger.info": false,
 	}
 	for _, call := range chunk.Calls {

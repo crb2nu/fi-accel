@@ -65,8 +65,7 @@ impl SseEventBuilder {
 
 /// Parse line-delimited JSON-RPC messages used by stdio transports.
 pub fn parse_jsonrpc_lines(data: &[u8]) -> Result<Vec<JsonRpcMessage>, TransportError> {
-    let text =
-        std::str::from_utf8(data).map_err(|e| TransportError::InvalidUtf8(e.to_string()))?;
+    let text = std::str::from_utf8(data).map_err(|e| TransportError::InvalidUtf8(e.to_string()))?;
     let mut messages = Vec::new();
 
     for (idx, raw_line) in text.split('\n').enumerate() {
@@ -140,8 +139,7 @@ pub fn extract_mcp_http_meta(headers: &[u8]) -> Result<McpHttpMeta, TransportErr
 
 /// Parse Server-Sent Events from an MCP-style event stream.
 pub fn parse_sse_events(data: &[u8]) -> Result<Vec<SseEvent>, TransportError> {
-    let text =
-        std::str::from_utf8(data).map_err(|e| TransportError::InvalidUtf8(e.to_string()))?;
+    let text = std::str::from_utf8(data).map_err(|e| TransportError::InvalidUtf8(e.to_string()))?;
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
     let mut events = Vec::new();
     let mut current = SseEventBuilder::default();
@@ -218,7 +216,10 @@ mod tests {
     fn test_parse_jsonrpc_lines_invalid() {
         let input = b"{\"jsonrpc\":\"2.0\",\"method\":\"a\",\"id\":1}\nnot-json";
         let err = parse_jsonrpc_lines(input).unwrap_err();
-        assert!(matches!(err, TransportError::InvalidJsonRpcLine { line: 2, .. }));
+        assert!(matches!(
+            err,
+            TransportError::InvalidJsonRpcLine { line: 2, .. }
+        ));
     }
 
     #[test]

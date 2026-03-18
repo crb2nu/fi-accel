@@ -390,7 +390,11 @@ func SayHello(name string) string {
             .find(|c| c.name.as_deref() == Some("SayHello"));
         assert!(func.is_some());
         assert_eq!(func.unwrap().kind, ChunkKind::Function);
-        assert!(func.unwrap().imports.as_ref().is_some_and(|imports| !imports.is_empty()));
+        assert!(func
+            .unwrap()
+            .imports
+            .as_ref()
+            .is_some_and(|imports| !imports.is_empty()));
     }
 
     #[test]
@@ -437,14 +441,12 @@ def hello(name):
             .find(|c| c.name.as_deref() == Some("hello"))
             .unwrap();
         assert_eq!(
-            func.calls.as_deref(),
-            Some(
-                &[
-                    "emit".to_string(),
-                    "format_name".to_string(),
-                    "logger.info".to_string(),
-                ][..]
-            )
+            func.calls,
+            vec![
+                "emit".to_string(),
+                "format_name".to_string(),
+                "logger.info".to_string(),
+            ]
         );
     }
 

@@ -345,8 +345,7 @@ fn serialize_jsonrpc_lines(py: Python<'_>, messages: PyObject) -> PyResult<Vec<u
     let json_str: String = json_module.call_method1("dumps", (messages,))?.extract()?;
     let messages: Vec<json::JsonRpcMessage> =
         serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    transport::serialize_jsonrpc_lines(&messages)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    transport::serialize_jsonrpc_lines(&messages).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Parse SSE events from an MCP event stream.
@@ -364,8 +363,7 @@ fn parse_sse_events(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
 fn extract_mcp_http_meta(py: Python<'_>, headers: &[u8]) -> PyResult<PyObject> {
     let meta = transport::extract_mcp_http_meta(headers)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let payload =
-        serde_json::to_string(&meta).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload = serde_json::to_string(&meta).map_err(|e| PyValueError::new_err(e.to_string()))?;
     json_str_to_py(py, payload)
 }
 

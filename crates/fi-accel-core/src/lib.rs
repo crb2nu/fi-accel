@@ -12,12 +12,11 @@
 //! - **toon**: TOON (Token Oriented Object Notation) parsing
 //! - **chunker**: Syntax-aware content chunking (code, markdown, text)
 
+pub mod capabilities;
 pub mod diff;
 pub mod embedding;
 pub mod json;
 pub mod log;
-pub mod capabilities;
-pub mod markdown;
 pub mod surface;
 pub mod toml;
 pub mod toon;
@@ -30,15 +29,11 @@ pub mod tokenizer;
 pub mod chunker;
 
 // Re-export commonly used types
+pub use capabilities::{capabilities, CapabilitySet};
 pub use diff::{DiffError, FuzzyMatcher, PatchResult};
 pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
-pub use capabilities::{capabilities, CapabilitySet};
 pub use json::parse_ndjson;
 pub use log::LogReader;
-pub use markdown::{
-    extract_markdown_code_blocks, markdown_text_stats, markdown_to_text, strip_markdown_code_fence,
-    MarkdownCodeBlock, MarkdownTextStats, DEFAULT_READING_WPM,
-};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
     normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,

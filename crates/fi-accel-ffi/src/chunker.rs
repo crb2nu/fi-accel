@@ -284,8 +284,16 @@ mod tests {
     fn test_chunk_markdown_round_trip() {
         let content = std::ffi::CString::new("# Title\n\nBody\n").unwrap();
         let mut err = empty_error();
-        let buf =
-            unsafe { fi_chunk_markdown(content.as_ptr(), 512, 50, std::ptr::null(), std::ptr::null(), &mut err) };
+        let buf = unsafe {
+            fi_chunk_markdown(
+                content.as_ptr(),
+                512,
+                50,
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut err,
+            )
+        };
         assert!(!buf.data.is_null());
         let output = buffer_to_string(buf);
         assert!(output.contains("\"symbol_kind\":\"section\""));

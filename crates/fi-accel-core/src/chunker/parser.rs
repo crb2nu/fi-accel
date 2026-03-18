@@ -2,8 +2,6 @@
 //!
 //! Ported from py-codebase-memory/rust/src/parser.rs
 
-use std::collections::HashSet;
-
 use super::language::Language;
 use super::ChunkerError;
 use std::collections::BTreeSet;
@@ -228,50 +226,7 @@ pub fn get_docstring(node: Node, content: &str, lang: &Language) -> Option<Strin
 /// Extract function, method, and macro calls from source code.
 pub fn extract_calls(content: &str, lang: &Language) -> Result<Vec<String>, ChunkerError> {
     let tree = parse_code(content, lang)?;
-    let mut calls = BTreeSet::new();
-    extract_calls_from_node(tree.root_node(), content, lang, &mut calls);
-    Ok(calls.into_iter().collect())
-}
-
-fn extract_calls_from_node(
-    node: Node,
-    content: &str,
-    lang: &Language,
-    calls: &mut BTreeSet<String>,
-) {
-    let call_types = match lang {
-        Language::Python => &["call"][..],
-        Language::TypeScript | Language::JavaScript => &["call_expression"][..],
-        Language::Go => &["call_expression"][..],
-        Language::Rust => &["call_expression", "macro_invocation"][..],
-    };
-
-    if call_types.contains(&node.kind()) {
-        if let Some(call_name) = extract_call_name(node, content, lang) {
-            calls.insert(call_name);
-        }
-    }
-
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        extract_calls_from_node(child, content, lang, calls);
-    }
-}
-
-fn extract_call_name(node: Node, content: &str, lang: &Language) -> Option<String> {
-    match lang {
-        Language::Python | Language::TypeScript | Language::JavaScript | Language::Go => node
-            .child_by_field_name("function")
-            .map(|n| node_text(n, content).to_string()),
-        Language::Rust => {
-            if node.kind() == "macro_invocation" {
-                node.child(0).map(|n| format!("{}!", node_text(n, content)))
-            } else {
-                node.child_by_field_name("function")
-                    .map(|n| node_text(n, content).to_string())
-            }
-        }
-    }
+    Ok(extract_calls_from_node(tree.root_node(), content, lang))
 }
 
 /// Extract import statements from source code
@@ -331,12 +286,12 @@ pub fn extract_imports(content: &str, lang: &Language) -> Result<Vec<String>, Ch
 
 /// Extract call names from a node subtree.
 pub fn extract_calls_from_node(node: Node, content: &str, lang: &Language) -> Vec<String> {
-    let mut calls = HashSet::new();
+    let mut calls = BTreeSet::new();
     collect_calls(node, content, lang, &mut calls);
     calls.into_iter().collect()
 }
 
-fn collect_calls(node: Node, content: &str, lang: &Language, calls: &mut HashSet<String>) {
+fn collect_calls(node: Node, content: &str, lang: &Language, calls: &mut BTreeSet<String>) {
     let call_types: &[&str] = match lang {
         Language::Python => &["call"],
         Language::TypeScript | Language::JavaScript => &["call_expression"],
