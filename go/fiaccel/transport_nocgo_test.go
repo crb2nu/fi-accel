@@ -6,7 +6,7 @@ import "testing"
 
 func TestRuntimeCapabilitiesNoCgo(t *testing.T) {
 	caps := RuntimeCapabilities()
-	if caps.Transport || caps.FFIAvailable || caps.SIMDJSON {
+	if caps.Transport || caps.Eventlog || caps.FFIAvailable || caps.SIMDJSON {
 		t.Fatalf("unexpected !cgo capabilities: %+v", caps)
 	}
 }
