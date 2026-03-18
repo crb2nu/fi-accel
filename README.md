@@ -15,6 +15,7 @@ High-performance Rust acceleration library for agent/MCP workflows.
 - **TOML Parsing**: Fast TOML parsing with JSON interop and config merging
 - **TOON Parsing**: Token Oriented Object Notation for efficient LLM serialization
 - **Chunking**: Syntax-aware chunking for code, markdown, and plain text
+  - Code chunks now include AST-derived call edges for retrieval and navigation
 
 ## Installation
 
@@ -69,6 +70,7 @@ from fi_accel import (
     merge_toml,
     parse_toon,
     to_toon,
+    extract_calls,
     chunk_code,
     chunk_markdown,
     chunk_text,
@@ -105,6 +107,7 @@ data = parse_toon("key: value\ncount: 42")  # Returns dict
 toon_str = to_toon({"name": "test", "items": [1, 2, 3]})  # Returns TOON string
 
 # Chunking
+calls = extract_calls("python", source_code)
 code_chunks = chunk_code(source_code, "python")
 markdown_chunks = chunk_markdown(markdown_doc)
 text_chunks = chunk_text(notes)

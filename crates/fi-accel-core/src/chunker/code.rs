@@ -390,7 +390,11 @@ func SayHello(name string) string {
             .find(|c| c.name.as_deref() == Some("SayHello"));
         assert!(func.is_some());
         assert_eq!(func.unwrap().kind, ChunkKind::Function);
-        assert!(func.unwrap().imports.as_ref().is_some_and(|imports| !imports.is_empty()));
+        assert!(func
+            .unwrap()
+            .imports
+            .as_ref()
+            .is_some_and(|imports| !imports.is_empty()));
     }
 
     #[test]
@@ -419,6 +423,31 @@ impl Greeter {
         let func = chunks.iter().find(|c| c.name.as_deref() == Some("greet"));
         assert!(func.is_some());
         assert!(func.unwrap().docstring.is_some());
+    }
+
+    #[test]
+    fn test_chunk_code_includes_call_edges() {
+        let content = r#"
+def hello(name):
+    message = format_name(name)
+    logger.info(message)
+    return emit(message)
+"#;
+        let config = ChunkConfig::default();
+        let chunks = chunk_code(content, &Language::Python, &config).unwrap();
+
+        let func = chunks
+            .iter()
+            .find(|c| c.name.as_deref() == Some("hello"))
+            .unwrap();
+        assert_eq!(
+            func.calls,
+            vec![
+                "emit".to_string(),
+                "format_name".to_string(),
+                "logger.info".to_string(),
+            ]
+        );
     }
 
     #[test]

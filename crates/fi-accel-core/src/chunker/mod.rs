@@ -23,6 +23,8 @@ pub use text::chunk_text;
 
 #[cfg(feature = "tree-sitter")]
 pub use code::chunk_code;
+#[cfg(feature = "tree-sitter")]
+pub use parser::extract_calls;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

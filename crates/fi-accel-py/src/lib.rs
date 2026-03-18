@@ -345,8 +345,7 @@ fn serialize_jsonrpc_lines(py: Python<'_>, messages: PyObject) -> PyResult<Vec<u
     let json_str: String = json_module.call_method1("dumps", (messages,))?.extract()?;
     let messages: Vec<json::JsonRpcMessage> =
         serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    transport::serialize_jsonrpc_lines(&messages)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    transport::serialize_jsonrpc_lines(&messages).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Parse SSE events from an MCP event stream.
@@ -364,8 +363,7 @@ fn parse_sse_events(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
 fn extract_mcp_http_meta(py: Python<'_>, headers: &[u8]) -> PyResult<PyObject> {
     let meta = transport::extract_mcp_http_meta(headers)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let payload =
-        serde_json::to_string(&meta).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload = serde_json::to_string(&meta).map_err(|e| PyValueError::new_err(e.to_string()))?;
     json_str_to_py(py, payload)
 }
 
@@ -503,6 +501,14 @@ fn chunk_to_pydict(py: Python<'_>, chunk: &chunker::Chunk) -> PyResult<PyObject>
     dict.set_item("calls", &chunk.calls)?;
     dict.set_item("definitions", &chunk.definitions)?;
     Ok(dict.into())
+}
+
+/// Extract function, method, and macro calls from source code.
+#[pyfunction]
+fn extract_calls(language: &str, content: &str) -> PyResult<Vec<String>> {
+    let lang = chunker::Language::from_str(language)
+        .ok_or_else(|| PyValueError::new_err(format!("Unsupported language: {}", language)))?;
+    chunker::extract_calls(content, &lang).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Chunk source code using tree-sitter AST analysis
@@ -720,6 +726,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(json_to_toon, m)?)?;
 
     // Chunker functions
+    m.add_function(wrap_pyfunction!(extract_calls, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_code, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_markdown, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_text, m)?)?;

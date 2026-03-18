@@ -2,10 +2,9 @@
 //!
 //! Ported from py-codebase-memory/rust/src/parser.rs
 
-use std::collections::HashSet;
-
 use super::language::Language;
 use super::ChunkerError;
+use std::collections::BTreeSet;
 use tree_sitter::{Node, Parser, Tree};
 
 /// Create a tree-sitter parser configured for the given language
@@ -224,6 +223,12 @@ pub fn get_docstring(node: Node, content: &str, lang: &Language) -> Option<Strin
     }
 }
 
+/// Extract function, method, and macro calls from source code.
+pub fn extract_calls(content: &str, lang: &Language) -> Result<Vec<String>, ChunkerError> {
+    let tree = parse_code(content, lang)?;
+    Ok(extract_calls_from_node(tree.root_node(), content, lang))
+}
+
 /// Extract import statements from source code
 pub fn extract_imports(content: &str, lang: &Language) -> Result<Vec<String>, ChunkerError> {
     let tree = parse_code(content, lang)?;
@@ -281,12 +286,12 @@ pub fn extract_imports(content: &str, lang: &Language) -> Result<Vec<String>, Ch
 
 /// Extract call names from a node subtree.
 pub fn extract_calls_from_node(node: Node, content: &str, lang: &Language) -> Vec<String> {
-    let mut calls = HashSet::new();
+    let mut calls = BTreeSet::new();
     collect_calls(node, content, lang, &mut calls);
     calls.into_iter().collect()
 }
 
-fn collect_calls(node: Node, content: &str, lang: &Language, calls: &mut HashSet<String>) {
+fn collect_calls(node: Node, content: &str, lang: &Language, calls: &mut BTreeSet<String>) {
     let call_types: &[&str] = match lang {
         Language::Python => &["call"],
         Language::TypeScript | Language::JavaScript => &["call_expression"],
@@ -381,5 +386,28 @@ mod tests {
         let content = "import os\nfrom pathlib import Path\n\ndef main():\n    pass\n";
         let imports = extract_imports(content, &Language::Python).unwrap();
         assert_eq!(imports.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_calls_python() {
+        let content = r#"
+def greet(name):
+    print(helper(name))
+    self.logger.info(name)
+"#;
+        let calls = extract_calls(content, &Language::Python).unwrap();
+        assert_eq!(calls, vec!["helper", "print", "self.logger.info"]);
+    }
+
+    #[test]
+    fn test_extract_calls_rust_includes_macros() {
+        let content = r#"
+fn greet(name: &str) {
+    format!("Hello, {}", name);
+    println!("{}", name);
+}
+"#;
+        let calls = extract_calls(content, &Language::Rust).unwrap();
+        assert_eq!(calls, vec!["format!", "println!"]);
     }
 }

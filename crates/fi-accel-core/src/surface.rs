@@ -73,10 +73,14 @@ pub fn analyze_log_lines(lines: &[String], filter: &SurfaceLogFilter) -> Vec<Sur
         Some(pattern) if filter.search_regex => Regex::new(pattern).ok(),
         _ => None,
     };
-    let normalized_search = filter.search_term.as_ref().map(|value| value.to_lowercase());
+    let normalized_search = filter
+        .search_term
+        .as_ref()
+        .map(|value| value.to_lowercase());
     let has_level_filter = !filter.levels.is_empty();
 
-    lines.iter()
+    lines
+        .iter()
         .enumerate()
         .map(|(index, line)| {
             let level = detect_log_level(line);
@@ -106,9 +110,12 @@ pub fn matches_label_selector(
     labels: &HashMap<String, String>,
     selector: &HashMap<String, String>,
 ) -> bool {
-    selector
-        .iter()
-        .all(|(key, value)| labels.get(key).map(|candidate| candidate == value).unwrap_or(false))
+    selector.iter().all(|(key, value)| {
+        labels
+            .get(key)
+            .map(|candidate| candidate == value)
+            .unwrap_or(false)
+    })
 }
 
 pub fn filter_label_selector_matches(
@@ -157,10 +164,22 @@ mod tests {
 
     #[test]
     fn detects_log_levels_with_flexdeck_style_rules() {
-        assert_eq!(detect_log_level("ERROR failed to connect"), SurfaceLogLevel::Error);
-        assert_eq!(detect_log_level("warning: backpressure rising"), SurfaceLogLevel::Warn);
-        assert_eq!(detect_log_level("DEBUG scheduling tick"), SurfaceLogLevel::Debug);
-        assert_eq!(detect_log_level("service warmed successfully"), SurfaceLogLevel::Info);
+        assert_eq!(
+            detect_log_level("ERROR failed to connect"),
+            SurfaceLogLevel::Error
+        );
+        assert_eq!(
+            detect_log_level("warning: backpressure rising"),
+            SurfaceLogLevel::Warn
+        );
+        assert_eq!(
+            detect_log_level("DEBUG scheduling tick"),
+            SurfaceLogLevel::Debug
+        );
+        assert_eq!(
+            detect_log_level("service warmed successfully"),
+            SurfaceLogLevel::Info
+        );
     }
 
     #[test]
@@ -235,22 +254,43 @@ mod tests {
             ("tier".to_string(), "edge".to_string()),
         ]);
 
-        assert_eq!(filter_label_selector_matches(&label_sets, &selector), vec![0, 2]);
+        assert_eq!(
+            filter_label_selector_matches(&label_sets, &selector),
+            vec![0, 2]
+        );
     }
 
     #[test]
     fn normalizes_ci_job_status_for_pipeline_widgets() {
-        assert_eq!(normalize_ci_job_status("waiting_for_resource"), SurfaceCiStatus::Pending);
+        assert_eq!(
+            normalize_ci_job_status("waiting_for_resource"),
+            SurfaceCiStatus::Pending
+        );
         assert_eq!(normalize_ci_job_status("running"), SurfaceCiStatus::Running);
         assert_eq!(normalize_ci_job_status("manual"), SurfaceCiStatus::Manual);
-        assert_eq!(normalize_ci_job_status("canceling"), SurfaceCiStatus::Failed);
+        assert_eq!(
+            normalize_ci_job_status("canceling"),
+            SurfaceCiStatus::Failed
+        );
     }
 
     #[test]
     fn normalizes_ci_pipeline_status_for_overview_cards() {
-        assert_eq!(normalize_ci_pipeline_status("manual"), SurfaceCiStatus::Pending);
-        assert_eq!(normalize_ci_pipeline_status("success"), SurfaceCiStatus::Success);
-        assert_eq!(normalize_ci_pipeline_status("cancelled"), SurfaceCiStatus::Canceled);
-        assert_eq!(normalize_ci_pipeline_status("skipped"), SurfaceCiStatus::Canceled);
+        assert_eq!(
+            normalize_ci_pipeline_status("manual"),
+            SurfaceCiStatus::Pending
+        );
+        assert_eq!(
+            normalize_ci_pipeline_status("success"),
+            SurfaceCiStatus::Success
+        );
+        assert_eq!(
+            normalize_ci_pipeline_status("cancelled"),
+            SurfaceCiStatus::Canceled
+        );
+        assert_eq!(
+            normalize_ci_pipeline_status("skipped"),
+            SurfaceCiStatus::Canceled
+        );
     }
 }

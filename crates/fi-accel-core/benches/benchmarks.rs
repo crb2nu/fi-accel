@@ -49,8 +49,7 @@ fn bench_embedding(c: &mut Criterion) {
 
     // L2 normalization
     for size in [10, 100, 1000].iter() {
-        let embeddings: Vec<Vec<f32>> =
-            (0..*size).map(|i| create_embedding(i as u32)).collect();
+        let embeddings: Vec<Vec<f32>> = (0..*size).map(|i| create_embedding(i as u32)).collect();
 
         group.bench_with_input(
             BenchmarkId::new("normalize_l2", size),
