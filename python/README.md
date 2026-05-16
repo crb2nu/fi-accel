@@ -8,6 +8,7 @@ Current Python surface:
 
 - tokenizer helpers: `count_tokens`, `truncate_to_tokens`, `split_by_tokens`, `Tokenizer`
 - embedding helpers: `normalize_l2`, `cosine_similarity`, `cosine_similarity_matrix`, `top_k_similar`, `compute_centroid`, `prepare_embedding_batch`
+- ranking helpers: `hybrid_rank`, `rrf_fuse`
 - diff helpers: `FuzzyMatcher`, `parse_unified_diff`
 - log helpers: `LogReader`
 - JSON helpers: `parse_ndjson`, `parse_jsonrpc_batch`, `parse_jsonrpc_lines`, `serialize_jsonrpc_lines`

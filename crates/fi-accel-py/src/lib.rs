@@ -3,7 +3,7 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, eventlog, json, log, tokenizer, toml, toon, transport,
+    chunker, diff, embedding, eventlog, json, log, ranking, tokenizer, toml, toon, transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -135,6 +135,31 @@ fn prepare_embedding_batch(
         .into_iter()
         .map(|p| (p.text, p.token_count, p.truncated))
         .collect())
+}
+
+// ============================================================================
+// Ranking Module
+// ============================================================================
+
+/// Combine lexical ranks and cosine scores into a stable ranked list.
+#[pyfunction]
+#[pyo3(signature = (lex_ranks, cosine_scores, alpha = 0.5, method = "weighted_sum", k = 60))]
+fn hybrid_rank(
+    lex_ranks: Vec<usize>,
+    cosine_scores: Vec<f32>,
+    alpha: f32,
+    method: &str,
+    k: usize,
+) -> PyResult<Vec<(usize, f32)>> {
+    ranking::hybrid_rank_by_name(&lex_ranks, &cosine_scores, alpha, method, k)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Fuse ranked item-id lists with reciprocal rank fusion.
+#[pyfunction]
+#[pyo3(signature = (ranked_lists, k = 60))]
+fn rrf_fuse(ranked_lists: Vec<Vec<usize>>, k: usize) -> PyResult<Vec<(usize, f32)>> {
+    ranking::rrf_fuse(&ranked_lists, k).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 // ============================================================================
@@ -754,6 +779,10 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(top_k_similar, m)?)?;
     m.add_function(wrap_pyfunction!(compute_centroid, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_embedding_batch, m)?)?;
+
+    // Ranking functions
+    m.add_function(wrap_pyfunction!(hybrid_rank, m)?)?;
+    m.add_function(wrap_pyfunction!(rrf_fuse, m)?)?;
 
     // Diff functions
     m.add_class::<FuzzyMatcher>()?;

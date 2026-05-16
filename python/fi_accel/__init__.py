@@ -32,6 +32,9 @@ from fi_accel.fi_accel import (
     top_k_similar,
     compute_centroid,
     prepare_embedding_batch,
+    # Ranking
+    hybrid_rank,
+    rrf_fuse,
     # Diff
     FuzzyMatcher,
     parse_unified_diff,
@@ -82,6 +85,9 @@ __all__ = [
     "top_k_similar",
     "compute_centroid",
     "prepare_embedding_batch",
+    # Ranking
+    "hybrid_rank",
+    "rrf_fuse",
     # Diff
     "FuzzyMatcher",
     "parse_unified_diff",

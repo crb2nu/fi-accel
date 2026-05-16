@@ -8,6 +8,7 @@ High-performance Rust acceleration library for agent/MCP workflows.
 
 - **Token Counting**: 10-50x faster than Python tiktoken
 - **Embedding Operations**: SIMD-accelerated similarity calculations (50-100x faster)
+- **Ranking Helpers**: Hybrid lexical/cosine ranking and reciprocal rank fusion
 - **Fuzzy Diff Matching**: Intelligent patch application for drifted files
 - **Log Streaming**: Efficient incremental log reading
 - **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
@@ -44,6 +45,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 |---------|-----------|--------|----|------|
 | tokenizer | full | full | full | unsupported |
 | embedding | full | full | full | full |
+| ranking | full | full | unsupported | unsupported |
 | diff | full | full | partial | partial |
 | log | full | full | unsupported | full |
 | JSON / JSON-RPC | full | full | partial | full |
@@ -65,6 +67,8 @@ from fi_accel import (
     truncate_to_tokens,
     split_by_tokens,
     cosine_similarity_matrix,
+    hybrid_rank,
+    rrf_fuse,
     FuzzyMatcher,
     LogReader,
     parse_jsonrpc_batch,
@@ -89,6 +93,10 @@ chunks = split_by_tokens(long_text, chunk_size=500, overlap=50, model="gpt-4")
 
 # Embedding similarity
 matrix = cosine_similarity_matrix(query_embeddings, doc_embeddings)
+
+# Hybrid ranking and reciprocal rank fusion
+ranked = hybrid_rank([0, 2, 1], [0.2, 0.95, 0.5], alpha=0.5)
+fused = rrf_fuse([[10, 20, 30], [20, 10]], k=60)
 
 # Fuzzy patch application
 matcher = FuzzyMatcher(threshold=0.6)
