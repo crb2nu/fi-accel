@@ -3,7 +3,8 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, eventlog, json, log, tokenizer, toml, toon, transport,
+    chunker, diff, embedding, encoding, eventlog, hashing, json, log, mail, pattern, ranking, text,
+    tokenizer, toml, toon, transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -135,6 +136,31 @@ fn prepare_embedding_batch(
         .into_iter()
         .map(|p| (p.text, p.token_count, p.truncated))
         .collect())
+}
+
+// ============================================================================
+// Ranking Module
+// ============================================================================
+
+/// Combine lexical ranks and cosine scores into a stable ranked list.
+#[pyfunction]
+#[pyo3(signature = (lex_ranks, cosine_scores, alpha = 0.5, method = "weighted_sum", k = 60))]
+fn hybrid_rank(
+    lex_ranks: Vec<usize>,
+    cosine_scores: Vec<f32>,
+    alpha: f32,
+    method: &str,
+    k: usize,
+) -> PyResult<Vec<(usize, f32)>> {
+    ranking::hybrid_rank_by_name(&lex_ranks, &cosine_scores, alpha, method, k)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Fuse ranked item-id lists with reciprocal rank fusion.
+#[pyfunction]
+#[pyo3(signature = (ranked_lists, k = 60))]
+fn rrf_fuse(ranked_lists: Vec<Vec<usize>>, k: usize) -> PyResult<Vec<(usize, f32)>> {
+    ranking::rrf_fuse(&ranked_lists, k).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 // ============================================================================
@@ -284,21 +310,70 @@ fn json_str_to_py(py: Python<'_>, json_str: String) -> PyResult<PyObject> {
     Ok(json_module.call_method1("loads", (json_str,))?.unbind())
 }
 
+fn json_value_to_py(py: Python<'_>, value: serde_json::Value) -> PyResult<PyObject> {
+    let json_str =
+        serde_json::to_string(&value).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, json_str)
+}
+
+fn json_values_to_py(py: Python<'_>, values: Vec<serde_json::Value>) -> PyResult<Vec<PyObject>> {
+    values
+        .into_iter()
+        .map(|value| json_value_to_py(py, value))
+        .collect()
+}
+
 /// Parse newline-delimited JSON (NDJSON)
 #[pyfunction]
 fn parse_ndjson(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
     let values = json::parse_ndjson(data);
-    values
-        .into_iter()
-        .map(|v| {
-            let json_str =
-                serde_json::to_string(&v).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            // Use Python's json module to parse
-            let json_module = py.import_bound("json")?;
-            let result = json_module.call_method1("loads", (json_str,))?;
-            Ok(result.unbind())
-        })
-        .collect()
+    json_values_to_py(py, values)
+}
+
+/// Strict incremental NDJSON reader with partial-line buffering
+#[pyclass]
+struct NDJSONReader {
+    inner: json::NDJSONReader,
+}
+
+#[pymethods]
+impl NDJSONReader {
+    #[new]
+    #[pyo3(signature = (initial_content = None))]
+    fn new(initial_content: Option<&[u8]>) -> PyResult<Self> {
+        let inner = json::NDJSONReader::new(initial_content.unwrap_or_default())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    /// Append bytes and return newly parsed JSON values
+    fn append(&mut self, py: Python<'_>, content: &[u8]) -> PyResult<Vec<PyObject>> {
+        let values = self
+            .inner
+            .append(content)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        json_values_to_py(py, values)
+    }
+
+    /// Get the last n parsed values
+    fn tail(&self, py: Python<'_>, n: usize) -> PyResult<Vec<PyObject>> {
+        json_values_to_py(py, self.inner.tail(n))
+    }
+
+    /// Get all parsed values
+    fn all_values(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        json_values_to_py(py, self.inner.all_values().to_vec())
+    }
+
+    /// Return buffered byte count for the current partial line
+    fn buffered_len(&self) -> usize {
+        self.inner.buffered_len()
+    }
+
+    /// Get total parsed value count
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
 }
 
 /// Parse JSON-RPC messages from NDJSON
@@ -421,6 +496,69 @@ fn summarize_eventlog(
     let payload =
         serde_json::to_string(&summary).map_err(|e| PyValueError::new_err(e.to_string()))?;
     json_str_to_py(py, payload)
+}
+
+// ============================================================================
+// Hashing Module
+// ============================================================================
+
+/// Compute SHA-256 hex digests for a batch of byte strings.
+#[pyfunction]
+fn sha256_batch(items: Vec<Vec<u8>>) -> Vec<String> {
+    hashing::sha256_batch(&items)
+}
+
+/// Verify an append-only hash chain over JSON event objects.
+#[pyfunction]
+#[pyo3(signature = (events, hash_field = "entry_hash", prev_field = "prev_hash", payload_fields = None, seed = ""))]
+fn verify_hash_chain(
+    py: Python<'_>,
+    events: PyObject,
+    hash_field: &str,
+    prev_field: &str,
+    payload_fields: Option<Vec<String>>,
+    seed: &str,
+) -> PyResult<PyObject> {
+    let json_module = py.import_bound("json")?;
+    let json_str: String = json_module
+        .call_method1("dumps", (events,))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .extract()?;
+    let events: Vec<serde_json::Value> =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let config = hashing::HashChainConfig {
+        hash_field: hash_field.to_string(),
+        prev_field: prev_field.to_string(),
+        payload_fields,
+        seed: seed.to_string(),
+    };
+    let result = hashing::verify_hash_chain(&events, &config);
+    let payload =
+        serde_json::to_string(&result).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+// ============================================================================
+// Text / Encoding Module
+// ============================================================================
+
+/// Convert HTML to plain text for ingestion.
+#[pyfunction]
+#[pyo3(signature = (html, preserve_links = false))]
+fn html_to_text(html: &str, preserve_links: bool) -> String {
+    text::html_to_text(html, preserve_links)
+}
+
+/// Detect likely character encoding from a byte sample.
+#[pyfunction]
+#[pyo3(signature = (data, sample_bytes = 8192))]
+fn detect_encoding(py: Python<'_>, data: &[u8], sample_bytes: usize) -> PyResult<PyObject> {
+    let detected = encoding::detect_encoding(data, sample_bytes);
+    let dict = PyDict::new_bound(py);
+    dict.set_item("encoding", detected.encoding)?;
+    dict.set_item("confidence", detected.confidence)?;
+    dict.set_item("bom", detected.bom)?;
+    Ok(dict.into())
 }
 
 // ============================================================================
@@ -719,6 +857,63 @@ fn detect_content_type(file_path: &str) -> String {
     }
 }
 
+// ============================================================================
+// Pattern and Mail Helpers
+// ============================================================================
+
+/// Multi-pattern text matcher supporting literal and regex modes.
+#[pyclass]
+struct MultiPatternMatcher {
+    patterns: Vec<String>,
+    regex: bool,
+}
+
+#[pymethods]
+impl MultiPatternMatcher {
+    #[new]
+    #[pyo3(signature = (patterns, regex = false))]
+    fn new(patterns: Vec<String>, regex: bool) -> PyResult<Self> {
+        if regex {
+            pattern::compile_regex_patterns(&patterns)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
+        Ok(Self { patterns, regex })
+    }
+
+    fn find_all(&self, text: &str) -> PyResult<Vec<(usize, usize, usize)>> {
+        let matches = if self.regex {
+            let regexes = pattern::compile_regex_patterns(&self.patterns)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            pattern::find_regex_matches(&regexes, text)
+        } else {
+            pattern::find_literal_matches(&self.patterns, text)
+        };
+
+        Ok(matches
+            .into_iter()
+            .map(|m| (m.pattern_index, m.start, m.end))
+            .collect())
+    }
+}
+
+/// Parse an RFC 822 / EML message into headers, bodies, and attachment metadata.
+#[pyfunction]
+fn parse_eml(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let parsed = mail::parse_eml(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&parsed).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+/// Parse an mbox payload into a list of parsed EML messages.
+#[pyfunction]
+fn parse_mbox(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let parsed = mail::parse_mbox(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&parsed).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
 /// Report the capabilities exposed by the Python binding.
 #[pyfunction]
 fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
@@ -727,9 +922,15 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("simd_json", true)?;
     dict.set_item("transport", true)?;
     dict.set_item("eventlog", true)?;
+    dict.set_item("ranking", true)?;
+    dict.set_item("hashing", true)?;
+    dict.set_item("text", true)?;
+    dict.set_item("encoding", true)?;
     dict.set_item("chunker_code", true)?;
     dict.set_item("chunker_markdown", true)?;
     dict.set_item("chunker_text", true)?;
+    dict.set_item("pattern_matcher", true)?;
+    dict.set_item("mail_parser", true)?;
     dict.set_item("ffi_available", true)?;
     Ok(dict.into())
 }
@@ -755,6 +956,10 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compute_centroid, m)?)?;
     m.add_function(wrap_pyfunction!(prepare_embedding_batch, m)?)?;
 
+    // Ranking functions
+    m.add_function(wrap_pyfunction!(hybrid_rank, m)?)?;
+    m.add_function(wrap_pyfunction!(rrf_fuse, m)?)?;
+
     // Diff functions
     m.add_class::<FuzzyMatcher>()?;
     m.add_function(wrap_pyfunction!(parse_unified_diff, m)?)?;
@@ -764,6 +969,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // JSON functions
     m.add_function(wrap_pyfunction!(parse_ndjson, m)?)?;
+    m.add_class::<NDJSONReader>()?;
     m.add_function(wrap_pyfunction!(parse_jsonrpc_batch, m)?)?;
     m.add_function(wrap_pyfunction!(parse_jsonrpc_lines, m)?)?;
     m.add_function(wrap_pyfunction!(serialize_jsonrpc_lines, m)?)?;
@@ -771,6 +977,14 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_mcp_http_meta, m)?)?;
     m.add_function(wrap_pyfunction!(project_eventlog, m)?)?;
     m.add_function(wrap_pyfunction!(summarize_eventlog, m)?)?;
+
+    // Hashing functions
+    m.add_function(wrap_pyfunction!(sha256_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_hash_chain, m)?)?;
+
+    // Text / encoding functions
+    m.add_function(wrap_pyfunction!(html_to_text, m)?)?;
+    m.add_function(wrap_pyfunction!(detect_encoding, m)?)?;
 
     // TOML functions
     m.add_function(wrap_pyfunction!(parse_toml, m)?)?;
@@ -792,6 +1006,11 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chunk_auto, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_batch, m)?)?;
     m.add_function(wrap_pyfunction!(detect_content_type, m)?)?;
+
+    // Pattern and mail helpers
+    m.add_class::<MultiPatternMatcher>()?;
+    m.add_function(wrap_pyfunction!(parse_eml, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_mbox, m)?)?;
     m.add_function(wrap_pyfunction!(capabilities, m)?)?;
 
     Ok(())

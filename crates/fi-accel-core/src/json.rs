@@ -12,6 +12,8 @@ pub enum JsonError {
     ParseError(String),
     #[error("Invalid JSON at position {position}: {message}")]
     InvalidJson { position: usize, message: String },
+    #[error("Invalid JSON on line {line}: {message}")]
+    InvalidNdjsonLine { line: usize, message: String },
 }
 
 /// A parsed JSON-RPC message
@@ -119,6 +121,111 @@ pub fn to_ndjson<T: Serialize>(values: &[T]) -> Result<String, JsonError> {
     Ok(lines?.join("\n"))
 }
 
+/// Strict incremental NDJSON reader.
+///
+/// Complete malformed lines return an error with a 1-based line number. A
+/// trailing partial line stays buffered until a newline arrives.
+#[derive(Debug, Clone)]
+pub struct NDJSONReader {
+    values: Vec<serde_json::Value>,
+    buffer: Vec<u8>,
+    next_line_number: usize,
+}
+
+impl NDJSONReader {
+    /// Create a reader and process any complete lines in the initial content.
+    pub fn new(initial_content: &[u8]) -> Result<Self, JsonError> {
+        let mut reader = Self::empty();
+        reader.append(initial_content)?;
+        Ok(reader)
+    }
+
+    /// Create an empty reader.
+    pub fn empty() -> Self {
+        Self {
+            values: Vec::new(),
+            buffer: Vec::new(),
+            next_line_number: 1,
+        }
+    }
+
+    /// Append bytes and return newly parsed JSON values.
+    pub fn append(&mut self, content: &[u8]) -> Result<Vec<serde_json::Value>, JsonError> {
+        self.buffer.extend_from_slice(content);
+        let mut parsed = Vec::new();
+
+        while let Some(pos) = self.buffer.iter().position(|&b| b == b'\n') {
+            let mut line = self.buffer.drain(..=pos).collect::<Vec<_>>();
+            line.pop();
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+
+            let line_number = self.next_line_number;
+            self.next_line_number += 1;
+
+            let trimmed = trim_ascii_whitespace(&line);
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            match serde_json::from_slice::<serde_json::Value>(trimmed) {
+                Ok(value) => {
+                    self.values.push(value.clone());
+                    parsed.push(value);
+                }
+                Err(err) => {
+                    return Err(JsonError::InvalidNdjsonLine {
+                        line: line_number,
+                        message: err.to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(parsed)
+    }
+
+    /// Return the last n parsed values.
+    pub fn tail(&self, n: usize) -> Vec<serde_json::Value> {
+        let start = self.values.len().saturating_sub(n);
+        self.values[start..].to_vec()
+    }
+
+    /// Return all parsed values.
+    pub fn all_values(&self) -> &[serde_json::Value] {
+        &self.values
+    }
+
+    /// Return the number of parsed values.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    /// Check whether no values have been parsed.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Return the number of bytes currently buffered as an incomplete line.
+    pub fn buffered_len(&self) -> usize {
+        self.buffer.len()
+    }
+}
+
+fn trim_ascii_whitespace(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|b| !b.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
+    let end = bytes
+        .iter()
+        .rposition(|b| !b.is_ascii_whitespace())
+        .map(|idx| idx + 1)
+        .unwrap_or(start);
+    &bytes[start..end]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +290,49 @@ mod tests {
         let ndjson = to_ndjson(&values).unwrap();
         assert!(ndjson.contains("{\"a\":1}"));
         assert!(ndjson.contains("{\"b\":2}"));
+    }
+
+    #[test]
+    fn test_ndjson_reader_buffers_partial_line() {
+        let mut reader = NDJSONReader::empty();
+        assert!(reader.append(br#"{"a": 1}"#).unwrap().is_empty());
+        assert_eq!(reader.buffered_len(), 8);
+
+        let values = reader.append(b"\n").unwrap();
+        assert_eq!(values, vec![serde_json::json!({"a": 1})]);
+        assert_eq!(reader.len(), 1);
+        assert_eq!(reader.buffered_len(), 0);
+    }
+
+    #[test]
+    fn test_ndjson_reader_reports_line_number_and_recovers() {
+        let mut reader = NDJSONReader::empty();
+        let err = reader
+            .append(
+                br#"{"ok": 1}
+not json
+{"ok": 2}
+"#,
+            )
+            .unwrap_err();
+
+        assert!(err.to_string().contains("line 2"));
+        assert_eq!(reader.len(), 1);
+
+        let values = reader.append(b"").unwrap();
+        assert_eq!(values, vec![serde_json::json!({"ok": 2})]);
+        assert_eq!(reader.len(), 2);
+
+        let values = reader.append(br#"{"ok": 3}"#.as_ref()).unwrap();
+        assert!(values.is_empty());
+        let values = reader.append(b"\n").unwrap();
+        assert_eq!(values, vec![serde_json::json!({"ok": 3})]);
+    }
+
+    #[test]
+    fn test_ndjson_reader_skips_blank_lines() {
+        let reader = NDJSONReader::new(b"\n{\"a\":1}\n\n").unwrap();
+        assert_eq!(reader.len(), 1);
+        assert_eq!(reader.tail(1), vec![serde_json::json!({"a": 1})]);
     }
 }

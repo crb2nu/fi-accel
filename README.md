@@ -8,9 +8,11 @@ High-performance Rust acceleration library for agent/MCP workflows.
 
 - **Token Counting**: 10-50x faster than Python tiktoken
 - **Embedding Operations**: SIMD-accelerated similarity calculations (50-100x faster)
+- **Ranking Helpers**: Hybrid lexical/cosine ranking and reciprocal rank fusion
 - **Fuzzy Diff Matching**: Intelligent patch application for drifted files
 - **Log Streaming**: Efficient incremental log reading
 - **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
+- **Text Ingestion**: HTML-to-text extraction, encoding detection, and strict streaming NDJSON reads
 - **Event Log Helpers**: Normalize and summarize JSONL timeline/audit streams
 - **Transport Helpers**: JSON-RPC stdio framing, SSE parsing, and MCP Streamable HTTP header extraction
 - **TOML Parsing**: Fast TOML parsing with JSON interop and config merging
@@ -44,9 +46,11 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 |---------|-----------|--------|----|------|
 | tokenizer | full | full | full | unsupported |
 | embedding | full | full | full | full |
+| ranking | full | full | unsupported | unsupported |
 | diff | full | full | partial | partial |
 | log | full | full | unsupported | full |
 | JSON / JSON-RPC | full | full | partial | full |
+| text / encoding ingest | full | full | unsupported | unsupported |
 | eventlog | full | full | full | full |
 | transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
@@ -65,8 +69,13 @@ from fi_accel import (
     truncate_to_tokens,
     split_by_tokens,
     cosine_similarity_matrix,
+    hybrid_rank,
+    rrf_fuse,
     FuzzyMatcher,
     LogReader,
+    NDJSONReader,
+    html_to_text,
+    detect_encoding,
     parse_jsonrpc_batch,
     project_eventlog,
     summarize_eventlog,
@@ -83,12 +92,17 @@ from fi_accel import (
 
 # Token counting
 tokens = count_tokens("Hello, world!", model="gpt-4")  # 4
+gemma_tokens = count_tokens("Hello, Gemma!", model="gemma")
 
 # Token-based text splitting
 chunks = split_by_tokens(long_text, chunk_size=500, overlap=50, model="gpt-4")
 
 # Embedding similarity
 matrix = cosine_similarity_matrix(query_embeddings, doc_embeddings)
+
+# Hybrid ranking and reciprocal rank fusion
+ranked = hybrid_rank([0, 2, 1], [0.2, 0.95, 0.5], alpha=0.5)
+fused = rrf_fuse([[10, 20, 30], [20, 10]], k=60)
 
 # Fuzzy patch application
 matcher = FuzzyMatcher(threshold=0.6)
@@ -98,6 +112,12 @@ result = matcher.apply_patch(patch_text, file_content)
 reader = LogReader(initial_content)
 new_lines = reader.append(new_content)
 errors = reader.filter(r"ERROR|WARN")
+
+# Text ingestion
+text = html_to_text("<p>Read <a href='https://example.test'>docs</a></p>", preserve_links=True)
+encoding = detect_encoding(b"\x93quoted\x94")
+stream = NDJSONReader()
+items = stream.append(b'{"ok": true}\n')
 
 # JSON-RPC line parsing
 messages = parse_jsonrpc_batch(b'{"jsonrpc":"2.0","method":"ping","id":1}\n')
@@ -132,6 +152,15 @@ text_chunks = chunk_text(notes)
 # Runtime capability report
 caps = capabilities()
 ```
+
+Tokenizer model support includes OpenAI GPT models, Claude aliases, embeddings,
+legacy Codex/Davinci aliases, and Gemma aliases (`gemma`, `gemma-26b`,
+`gemma-26b-a4b`). Gemma aliases require the optional `gemma-tokenizer` feature
+and a local Hugging Face `tokenizer.json` asset configured with
+`FI_ACCEL_GEMMA_TOKENIZER_PATH` or placed at
+`$XDG_CACHE_HOME/fi-accel/gemma/tokenizer.json` (falling back to
+`~/.cache/fi-accel/gemma/tokenizer.json`). fi-accel does not download model
+assets at runtime and no longer approximates Gemma with a GPT tokenizer.
 
 ### JavaScript/TypeScript
 

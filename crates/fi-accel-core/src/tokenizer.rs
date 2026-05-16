@@ -1,11 +1,24 @@
-//! Fast token counting and manipulation using tiktoken-rs
+//! Fast token counting and manipulation using tiktoken-rs.
 //!
-//! Provides 10-50x speedup over Python tiktoken for large texts.
+//! Gemma support is exact when the optional `gemma-tokenizer` feature is enabled
+//! and a local Hugging Face `tokenizer.json` asset is configured.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 use thiserror::Error;
 use tiktoken_rs::{cl100k_base, o200k_base, p50k_base, p50k_edit, r50k_base, CoreBPE};
+
+#[cfg(feature = "gemma-tokenizer")]
+use {
+    std::{
+        path::{Path, PathBuf},
+        sync::{Arc, Mutex},
+    },
+    tokenizers::Tokenizer as HfTokenizer,
+};
+
+#[cfg(feature = "gemma-tokenizer")]
+const GEMMA_TOKENIZER_ENV: &str = "FI_ACCEL_GEMMA_TOKENIZER_PATH";
 
 #[derive(Error, Debug)]
 pub enum TokenizerError {
@@ -13,9 +26,11 @@ pub enum TokenizerError {
     UnknownModel(String),
     #[error("Failed to initialize tokenizer: {0}")]
     InitError(String),
+    #[error("{0}")]
+    MissingGemmaTokenizer(String),
 }
 
-/// Model to encoding mapping
+/// Model to encoding mapping for tiktoken-backed models.
 static MODEL_ENCODINGS: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
 fn get_model_encodings() -> &'static HashMap<&'static str, &'static str> {
@@ -43,6 +58,10 @@ fn get_model_encodings() -> &'static HashMap<&'static str, &'static str> {
     })
 }
 
+fn is_gemma_model(model: &str) -> bool {
+    matches!(model, "gemma" | "gemma-26b" | "gemma-26b-a4b")
+}
+
 fn get_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
     match encoding_name {
         "cl100k_base" => cl100k_base().map_err(|e| TokenizerError::InitError(e.to_string())),
@@ -54,62 +73,216 @@ fn get_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
     }
 }
 
-/// Get the appropriate tokenizer for a model
-fn get_tokenizer_for_model(model: &str) -> Result<CoreBPE, TokenizerError> {
+fn get_encoding_name_for_model(model: &str) -> &'static str {
     let encodings = get_model_encodings();
-
-    // First check if model name directly maps to encoding
-    let encoding_name = encodings.get(model).copied().unwrap_or({
+    encodings.get(model).copied().unwrap_or({
         // Default to cl100k_base for unknown models (most common)
         "cl100k_base"
-    });
-
-    get_encoding(encoding_name)
+    })
 }
 
-/// Tokenizer wrapper with cached BPE instance
+#[cfg(feature = "gemma-tokenizer")]
+static GEMMA_TOKENIZER_CACHE: OnceLock<Mutex<HashMap<PathBuf, Arc<HfTokenizer>>>> = OnceLock::new();
+
+#[cfg(feature = "gemma-tokenizer")]
+fn gemma_tokenizer_cache() -> &'static Mutex<HashMap<PathBuf, Arc<HfTokenizer>>> {
+    GEMMA_TOKENIZER_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(feature = "gemma-tokenizer")]
+fn default_gemma_tokenizer_path() -> Option<PathBuf> {
+    if let Some(cache_home) = std::env::var_os("XDG_CACHE_HOME") {
+        return Some(
+            PathBuf::from(cache_home)
+                .join("fi-accel")
+                .join("gemma")
+                .join("tokenizer.json"),
+        );
+    }
+
+    std::env::var_os("HOME").map(|home| {
+        PathBuf::from(home)
+            .join(".cache")
+            .join("fi-accel")
+            .join("gemma")
+            .join("tokenizer.json")
+    })
+}
+
+#[cfg(feature = "gemma-tokenizer")]
+fn configured_gemma_tokenizer_path() -> Result<PathBuf, TokenizerError> {
+    if let Some(path) = std::env::var_os(GEMMA_TOKENIZER_ENV) {
+        return Ok(PathBuf::from(path));
+    }
+
+    let Some(path) = default_gemma_tokenizer_path() else {
+        return Err(gemma_asset_error(None));
+    };
+
+    Ok(path)
+}
+
+#[cfg(feature = "gemma-tokenizer")]
+fn gemma_asset_error(path: Option<&Path>) -> TokenizerError {
+    let location = path
+        .map(|p| format!(" at {}", p.display()))
+        .unwrap_or_default();
+    TokenizerError::MissingGemmaTokenizer(format!(
+        "Gemma tokenization requires a local Hugging Face tokenizer.json{location}. \
+         Set {GEMMA_TOKENIZER_ENV} or place the official Gemma tokenizer at the default cache path; \
+         fi-accel does not download model assets at runtime."
+    ))
+}
+
+#[cfg(not(feature = "gemma-tokenizer"))]
+fn missing_gemma_feature_error() -> TokenizerError {
+    TokenizerError::MissingGemmaTokenizer(
+        "Gemma tokenization requires the optional `gemma-tokenizer` feature and a local Hugging Face tokenizer.json; fi-accel no longer approximates Gemma with cl100k_base.".to_string(),
+    )
+}
+
+#[cfg(feature = "gemma-tokenizer")]
+fn load_gemma_tokenizer(path: &Path) -> Result<Arc<HfTokenizer>, TokenizerError> {
+    if !path.is_file() {
+        return Err(gemma_asset_error(Some(path)));
+    }
+
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let cache = gemma_tokenizer_cache();
+    let mut cache = cache
+        .lock()
+        .map_err(|_| TokenizerError::InitError("Gemma tokenizer cache lock poisoned".into()))?;
+
+    if let Some(tokenizer) = cache.get(&canonical_path) {
+        return Ok(Arc::clone(tokenizer));
+    }
+
+    let tokenizer = HfTokenizer::from_file(&canonical_path)
+        .map_err(|e| TokenizerError::InitError(e.to_string()))?;
+    let tokenizer = Arc::new(tokenizer);
+    cache.insert(canonical_path, Arc::clone(&tokenizer));
+    Ok(tokenizer)
+}
+
+enum TokenizerBackend {
+    Tiktoken(CoreBPE),
+    #[cfg(feature = "gemma-tokenizer")]
+    Gemma(Arc<HfTokenizer>),
+}
+
+impl TokenizerBackend {
+    fn count(&self, text: &str) -> usize {
+        match self {
+            Self::Tiktoken(bpe) => bpe.encode_ordinary(text).len(),
+            #[cfg(feature = "gemma-tokenizer")]
+            Self::Gemma(tokenizer) => tokenizer
+                .encode(text, false)
+                .map(|encoding| encoding.len())
+                .unwrap_or(0),
+        }
+    }
+
+    fn encode(&self, text: &str) -> Vec<u32> {
+        match self {
+            Self::Tiktoken(bpe) => bpe.encode_ordinary(text),
+            #[cfg(feature = "gemma-tokenizer")]
+            Self::Gemma(tokenizer) => tokenizer
+                .encode(text, false)
+                .map(|encoding| encoding.get_ids().to_vec())
+                .unwrap_or_default(),
+        }
+    }
+
+    fn decode(&self, tokens: &[u32]) -> Result<String, TokenizerError> {
+        match self {
+            Self::Tiktoken(bpe) => bpe
+                .decode(tokens.to_vec())
+                .map_err(|e| TokenizerError::InitError(e.to_string())),
+            #[cfg(feature = "gemma-tokenizer")]
+            Self::Gemma(tokenizer) => tokenizer
+                .decode(tokens, false)
+                .map_err(|e| TokenizerError::InitError(e.to_string())),
+        }
+    }
+}
+
+/// Tokenizer wrapper with cached tokenizer instance
 pub struct Tokenizer {
-    bpe: CoreBPE,
+    backend: TokenizerBackend,
     model: String,
 }
 
 impl Tokenizer {
-    /// Create a new tokenizer for the given model
+    /// Create a new tokenizer for the given model.
+    ///
+    /// Gemma models require the `gemma-tokenizer` feature and a local
+    /// `tokenizer.json` configured through `FI_ACCEL_GEMMA_TOKENIZER_PATH` or
+    /// the default cache path.
     pub fn new(model: &str) -> Result<Self, TokenizerError> {
-        let bpe = get_tokenizer_for_model(model)?;
+        if is_gemma_model(model) {
+            #[cfg(feature = "gemma-tokenizer")]
+            {
+                return Self::new_gemma_with_tokenizer_path(
+                    model,
+                    configured_gemma_tokenizer_path()?,
+                );
+            }
+
+            #[cfg(not(feature = "gemma-tokenizer"))]
+            {
+                return Err(missing_gemma_feature_error());
+            }
+        }
+
+        let bpe = get_encoding(get_encoding_name_for_model(model))?;
         Ok(Self {
-            bpe,
+            backend: TokenizerBackend::Tiktoken(bpe),
+            model: model.to_string(),
+        })
+    }
+
+    /// Create a Gemma tokenizer using an explicit local Hugging Face tokenizer asset.
+    #[cfg(feature = "gemma-tokenizer")]
+    pub fn new_gemma_with_tokenizer_path(
+        model: &str,
+        tokenizer_path: impl AsRef<Path>,
+    ) -> Result<Self, TokenizerError> {
+        if !is_gemma_model(model) {
+            return Err(TokenizerError::UnknownModel(model.to_string()));
+        }
+
+        let tokenizer = load_gemma_tokenizer(tokenizer_path.as_ref())?;
+        Ok(Self {
+            backend: TokenizerBackend::Gemma(tokenizer),
             model: model.to_string(),
         })
     }
 
     /// Count tokens in text
     pub fn count(&self, text: &str) -> usize {
-        self.bpe.encode_ordinary(text).len()
+        self.backend.count(text)
     }
 
     /// Encode text to token IDs
     pub fn encode(&self, text: &str) -> Vec<u32> {
-        self.bpe.encode_ordinary(text)
+        self.backend.encode(text)
     }
 
     /// Decode token IDs to text
     pub fn decode(&self, tokens: &[u32]) -> Result<String, TokenizerError> {
-        self.bpe
-            .decode(tokens.to_vec())
-            .map_err(|e| TokenizerError::InitError(e.to_string()))
+        self.backend.decode(tokens)
     }
 
     /// Truncate text to fit within max_tokens
     pub fn truncate(&self, text: &str, max_tokens: usize) -> String {
-        let tokens = self.bpe.encode_ordinary(text);
+        let tokens = self.backend.encode(text);
         if tokens.len() <= max_tokens {
             return text.to_string();
         }
 
         let truncated = &tokens[..max_tokens];
-        self.bpe
-            .decode(truncated.to_vec())
+        self.backend
+            .decode(truncated)
             .unwrap_or_else(|_| text[..text.len().min(max_tokens * 4)].to_string())
     }
 
@@ -119,7 +292,7 @@ impl Tokenizer {
             return vec![];
         }
 
-        let tokens = self.bpe.encode_ordinary(text);
+        let tokens = self.backend.encode(text);
         if tokens.is_empty() {
             return vec![];
         }
@@ -132,7 +305,7 @@ impl Tokenizer {
             let end = (start + chunk_size).min(tokens.len());
             let chunk_tokens = &tokens[start..end];
 
-            if let Ok(chunk_text) = self.bpe.decode(chunk_tokens.to_vec()) {
+            if let Ok(chunk_text) = self.backend.decode(chunk_tokens) {
                 chunks.push(chunk_text);
             }
 
@@ -230,5 +403,68 @@ mod tests {
         // Unknown models should default to cl100k_base
         let result = Tokenizer::new("unknown-model-xyz");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_gemma_model_names_are_recognized() {
+        for model in ["gemma", "gemma-26b", "gemma-26b-a4b"] {
+            assert!(is_gemma_model(model));
+        }
+    }
+
+    #[test]
+    #[cfg(not(feature = "gemma-tokenizer"))]
+    fn test_gemma_models_require_feature() {
+        for model in ["gemma", "gemma-26b", "gemma-26b-a4b"] {
+            let err = match Tokenizer::new(model) {
+                Ok(_) => panic!("{model} unexpectedly initialized without gemma-tokenizer"),
+                Err(err) => err.to_string(),
+            };
+            assert!(err.contains("gemma-tokenizer"));
+            assert!(err.contains("no longer approximates Gemma"));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "gemma-tokenizer")]
+    fn test_gemma_models_require_local_asset() {
+        let previous = std::env::var_os(GEMMA_TOKENIZER_ENV);
+        std::env::set_var(
+            GEMMA_TOKENIZER_ENV,
+            "/path/that/does/not/exist/tokenizer.json",
+        );
+
+        let err = match Tokenizer::new("gemma") {
+            Ok(_) => panic!("gemma unexpectedly initialized without a local tokenizer asset"),
+            Err(err) => err.to_string(),
+        };
+        assert!(err.contains("requires a local Hugging Face tokenizer.json"));
+        assert!(err.contains(GEMMA_TOKENIZER_ENV));
+
+        if let Some(previous) = previous {
+            std::env::set_var(GEMMA_TOKENIZER_ENV, previous);
+        } else {
+            std::env::remove_var(GEMMA_TOKENIZER_ENV);
+        }
+    }
+
+    #[test]
+    fn test_existing_gpt_and_claude_model_mappings() {
+        let expected = [
+            ("gpt-4", "cl100k_base"),
+            ("gpt-4-turbo", "cl100k_base"),
+            ("gpt-4o", "o200k_base"),
+            ("gpt-4o-mini", "o200k_base"),
+            ("gpt-3.5-turbo", "cl100k_base"),
+            ("claude-3-opus", "cl100k_base"),
+            ("claude-3-sonnet", "cl100k_base"),
+            ("claude-3-haiku", "cl100k_base"),
+            ("claude-3.5-sonnet", "cl100k_base"),
+        ];
+
+        for (model, encoding) in expected {
+            assert_eq!(get_encoding_name_for_model(model), encoding);
+            assert!(Tokenizer::new(model).is_ok());
+        }
     }
 }

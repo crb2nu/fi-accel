@@ -11,14 +11,21 @@
 //! - **toml**: Fast TOML parsing and conversion
 //! - **toon**: TOON (Token Oriented Object Notation) parsing
 //! - **chunker**: Syntax-aware content chunking (code, markdown, text)
+//! - **ranking**: Hybrid ranking and reciprocal rank fusion helpers
 
 pub mod capabilities;
 pub mod diff;
 pub mod embedding;
+pub mod encoding;
 pub mod eventlog;
+pub mod hashing;
 pub mod json;
 pub mod log;
+pub mod mail;
+pub mod pattern;
+pub mod ranking;
 pub mod surface;
+pub mod text;
 pub mod toml;
 pub mod toon;
 pub mod transport;
@@ -33,17 +40,25 @@ pub mod chunker;
 pub use capabilities::{capabilities, CapabilitySet};
 pub use diff::{DiffError, FuzzyMatcher, PatchResult};
 pub use embedding::{cosine_similarity, cosine_similarity_matrix, normalize_l2};
+pub use encoding::{detect_encoding, EncodingDetection};
 pub use eventlog::{
     project_eventlog_ndjson, project_events, summarize_eventlog_ndjson, summarize_events,
     EventProjectionConfig, EventRecord, EventSummary,
 };
-pub use json::parse_ndjson;
+pub use hashing::{sha256_batch, verify_hash_chain, HashChainConfig, HashChainVerification};
+pub use json::{parse_ndjson, NDJSONReader};
 pub use log::LogReader;
+pub use mail::{parse_eml, parse_mbox, AttachmentInfo, MailError, ParsedEmail};
+pub use pattern::{
+    compile_regex_patterns, find_literal_matches, find_regex_matches, PatternError, PatternMatch,
+};
+pub use ranking::{hybrid_rank, hybrid_rank_by_name, rrf_fuse, HybridRankMethod, RankingError};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
     normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,
     SurfaceLogLevel, SurfaceLogMatch,
 };
+pub use text::html_to_text;
 pub use toml::{json_to_toml, merge_toml, parse_toml, validate_toml};
 pub use toon::{json_to_toon, parse_toon, to_toon, validate_toon};
 pub use transport::{

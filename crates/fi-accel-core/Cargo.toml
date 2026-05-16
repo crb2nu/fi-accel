@@ -11,6 +11,7 @@ crate-type = ["lib", "staticlib", "cdylib"]
 
 [dependencies]
 tiktoken-rs = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
 simd-json = { workspace = true, optional = true }
 toml = { workspace = true }
 similar = { workspace = true }
@@ -34,6 +35,7 @@ hex = { workspace = true }
 [features]
 default = ["tokenizer", "simd"]
 tokenizer = ["tiktoken-rs"]
+gemma-tokenizer = ["tokenizer", "dep:tokenizers"]
 simd = ["simd-json"]
 chunker-base = ["pulldown-cmark"]
 chunker = [
