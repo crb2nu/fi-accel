@@ -87,6 +87,7 @@ from fi_accel import (
 
 # Token counting
 tokens = count_tokens("Hello, world!", model="gpt-4")  # 4
+gemma_tokens = count_tokens("Hello, Gemma!", model="gemma")
 
 # Token-based text splitting
 chunks = split_by_tokens(long_text, chunk_size=500, overlap=50, model="gpt-4")
@@ -140,6 +141,15 @@ text_chunks = chunk_text(notes)
 # Runtime capability report
 caps = capabilities()
 ```
+
+Tokenizer model support includes OpenAI GPT models, Claude aliases, embeddings,
+legacy Codex/Davinci aliases, and Gemma aliases (`gemma`, `gemma-26b`,
+`gemma-26b-a4b`). Gemma aliases require the optional `gemma-tokenizer` feature
+and a local Hugging Face `tokenizer.json` asset configured with
+`FI_ACCEL_GEMMA_TOKENIZER_PATH` or placed at
+`$XDG_CACHE_HOME/fi-accel/gemma/tokenizer.json` (falling back to
+`~/.cache/fi-accel/gemma/tokenizer.json`). fi-accel does not download model
+assets at runtime and no longer approximates Gemma with a GPT tokenizer.
 
 ### JavaScript/TypeScript
 

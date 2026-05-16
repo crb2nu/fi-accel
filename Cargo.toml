@@ -17,6 +17,7 @@ repository = "https://gitlab.flexinfer.ai/libs/fi-accel"
 [workspace.dependencies]
 # Core dependencies
 tiktoken-rs = "0.6"
+tokenizers = { version = "0.23.1", default-features = false, features = ["fancy-regex"] }
 simd-json = "0.14"
 similar = "2.6"
 rayon = "1.10"
