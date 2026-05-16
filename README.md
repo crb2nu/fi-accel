@@ -12,6 +12,7 @@ High-performance Rust acceleration library for agent/MCP workflows.
 - **Fuzzy Diff Matching**: Intelligent patch application for drifted files
 - **Log Streaming**: Efficient incremental log reading
 - **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
+- **Text Ingestion**: HTML-to-text extraction, encoding detection, and strict streaming NDJSON reads
 - **Event Log Helpers**: Normalize and summarize JSONL timeline/audit streams
 - **Transport Helpers**: JSON-RPC stdio framing, SSE parsing, and MCP Streamable HTTP header extraction
 - **TOML Parsing**: Fast TOML parsing with JSON interop and config merging
@@ -49,6 +50,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | diff | full | full | partial | partial |
 | log | full | full | unsupported | full |
 | JSON / JSON-RPC | full | full | partial | full |
+| text / encoding ingest | full | full | unsupported | unsupported |
 | eventlog | full | full | full | full |
 | transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
@@ -71,6 +73,9 @@ from fi_accel import (
     rrf_fuse,
     FuzzyMatcher,
     LogReader,
+    NDJSONReader,
+    html_to_text,
+    detect_encoding,
     parse_jsonrpc_batch,
     project_eventlog,
     summarize_eventlog,
@@ -107,6 +112,12 @@ result = matcher.apply_patch(patch_text, file_content)
 reader = LogReader(initial_content)
 new_lines = reader.append(new_content)
 errors = reader.filter(r"ERROR|WARN")
+
+# Text ingestion
+text = html_to_text("<p>Read <a href='https://example.test'>docs</a></p>", preserve_links=True)
+encoding = detect_encoding(b"\x93quoted\x94")
+stream = NDJSONReader()
+items = stream.append(b'{"ok": true}\n')
 
 # JSON-RPC line parsing
 messages = parse_jsonrpc_batch(b'{"jsonrpc":"2.0","method":"ping","id":1}\n')

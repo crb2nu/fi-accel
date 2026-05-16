@@ -44,6 +44,7 @@ from fi_accel.fi_accel import (
     LogReader,
     # JSON
     parse_ndjson,
+    NDJSONReader,
     parse_jsonrpc_batch,
     parse_jsonrpc_lines,
     serialize_jsonrpc_lines,
@@ -53,6 +54,9 @@ from fi_accel.fi_accel import (
     summarize_eventlog,
     sha256_batch,
     verify_hash_chain,
+    # Text / encoding
+    html_to_text,
+    detect_encoding,
     # TOML
     parse_toml,
     validate_toml,
@@ -111,6 +115,7 @@ __all__ = [
     "LogReader",
     # JSON
     "parse_ndjson",
+    "NDJSONReader",
     "parse_jsonrpc_batch",
     "parse_jsonrpc_lines",
     "serialize_jsonrpc_lines",
@@ -121,6 +126,9 @@ __all__ = [
     "sha256_batch",
     "sha256_stream",
     "verify_hash_chain",
+    # Text / encoding
+    "html_to_text",
+    "detect_encoding",
     # TOML
     "parse_toml",
     "validate_toml",

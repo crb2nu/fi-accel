@@ -3,8 +3,8 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, eventlog, hashing, json, log, ranking, tokenizer, toml, toon,
-    transport,
+    chunker, diff, embedding, encoding, eventlog, hashing, json, log, ranking, text, tokenizer,
+    toml, toon, transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -310,21 +310,70 @@ fn json_str_to_py(py: Python<'_>, json_str: String) -> PyResult<PyObject> {
     Ok(json_module.call_method1("loads", (json_str,))?.unbind())
 }
 
+fn json_value_to_py(py: Python<'_>, value: serde_json::Value) -> PyResult<PyObject> {
+    let json_str =
+        serde_json::to_string(&value).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, json_str)
+}
+
+fn json_values_to_py(py: Python<'_>, values: Vec<serde_json::Value>) -> PyResult<Vec<PyObject>> {
+    values
+        .into_iter()
+        .map(|value| json_value_to_py(py, value))
+        .collect()
+}
+
 /// Parse newline-delimited JSON (NDJSON)
 #[pyfunction]
 fn parse_ndjson(py: Python<'_>, data: &[u8]) -> PyResult<Vec<PyObject>> {
     let values = json::parse_ndjson(data);
-    values
-        .into_iter()
-        .map(|v| {
-            let json_str =
-                serde_json::to_string(&v).map_err(|e| PyValueError::new_err(e.to_string()))?;
-            // Use Python's json module to parse
-            let json_module = py.import_bound("json")?;
-            let result = json_module.call_method1("loads", (json_str,))?;
-            Ok(result.unbind())
-        })
-        .collect()
+    json_values_to_py(py, values)
+}
+
+/// Strict incremental NDJSON reader with partial-line buffering
+#[pyclass]
+struct NDJSONReader {
+    inner: json::NDJSONReader,
+}
+
+#[pymethods]
+impl NDJSONReader {
+    #[new]
+    #[pyo3(signature = (initial_content = None))]
+    fn new(initial_content: Option<&[u8]>) -> PyResult<Self> {
+        let inner = json::NDJSONReader::new(initial_content.unwrap_or_default())
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    /// Append bytes and return newly parsed JSON values
+    fn append(&mut self, py: Python<'_>, content: &[u8]) -> PyResult<Vec<PyObject>> {
+        let values = self
+            .inner
+            .append(content)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        json_values_to_py(py, values)
+    }
+
+    /// Get the last n parsed values
+    fn tail(&self, py: Python<'_>, n: usize) -> PyResult<Vec<PyObject>> {
+        json_values_to_py(py, self.inner.tail(n))
+    }
+
+    /// Get all parsed values
+    fn all_values(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        json_values_to_py(py, self.inner.all_values().to_vec())
+    }
+
+    /// Return buffered byte count for the current partial line
+    fn buffered_len(&self) -> usize {
+        self.inner.buffered_len()
+    }
+
+    /// Get total parsed value count
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
 }
 
 /// Parse JSON-RPC messages from NDJSON
@@ -487,6 +536,29 @@ fn verify_hash_chain(
     let payload =
         serde_json::to_string(&result).map_err(|e| PyValueError::new_err(e.to_string()))?;
     json_str_to_py(py, payload)
+}
+
+// ============================================================================
+// Text / Encoding Module
+// ============================================================================
+
+/// Convert HTML to plain text for ingestion.
+#[pyfunction]
+#[pyo3(signature = (html, preserve_links = false))]
+fn html_to_text(html: &str, preserve_links: bool) -> String {
+    text::html_to_text(html, preserve_links)
+}
+
+/// Detect likely character encoding from a byte sample.
+#[pyfunction]
+#[pyo3(signature = (data, sample_bytes = 8192))]
+fn detect_encoding(py: Python<'_>, data: &[u8], sample_bytes: usize) -> PyResult<PyObject> {
+    let detected = encoding::detect_encoding(data, sample_bytes);
+    let dict = PyDict::new_bound(py);
+    dict.set_item("encoding", detected.encoding)?;
+    dict.set_item("confidence", detected.confidence)?;
+    dict.set_item("bom", detected.bom)?;
+    Ok(dict.into())
 }
 
 // ============================================================================
@@ -793,7 +865,10 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("simd_json", true)?;
     dict.set_item("transport", true)?;
     dict.set_item("eventlog", true)?;
+    dict.set_item("ranking", true)?;
     dict.set_item("hashing", true)?;
+    dict.set_item("text", true)?;
+    dict.set_item("encoding", true)?;
     dict.set_item("chunker_code", true)?;
     dict.set_item("chunker_markdown", true)?;
     dict.set_item("chunker_text", true)?;
@@ -835,6 +910,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // JSON functions
     m.add_function(wrap_pyfunction!(parse_ndjson, m)?)?;
+    m.add_class::<NDJSONReader>()?;
     m.add_function(wrap_pyfunction!(parse_jsonrpc_batch, m)?)?;
     m.add_function(wrap_pyfunction!(parse_jsonrpc_lines, m)?)?;
     m.add_function(wrap_pyfunction!(serialize_jsonrpc_lines, m)?)?;
@@ -846,6 +922,10 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Hashing functions
     m.add_function(wrap_pyfunction!(sha256_batch, m)?)?;
     m.add_function(wrap_pyfunction!(verify_hash_chain, m)?)?;
+
+    // Text / encoding functions
+    m.add_function(wrap_pyfunction!(html_to_text, m)?)?;
+    m.add_function(wrap_pyfunction!(detect_encoding, m)?)?;
 
     // TOML functions
     m.add_function(wrap_pyfunction!(parse_toml, m)?)?;

@@ -11,10 +11,11 @@ Current Python surface:
 - ranking helpers: `hybrid_rank`, `rrf_fuse`
 - diff helpers: `FuzzyMatcher`, `parse_unified_diff`
 - log helpers: `LogReader`
-- JSON helpers: `parse_ndjson`, `parse_jsonrpc_batch`, `parse_jsonrpc_lines`, `serialize_jsonrpc_lines`
+- JSON helpers: `parse_ndjson`, `NDJSONReader`, `parse_jsonrpc_batch`, `parse_jsonrpc_lines`, `serialize_jsonrpc_lines`
 - transport helpers: `parse_sse_events`, `extract_mcp_http_meta`
 - event-log helpers: `project_eventlog`, `summarize_eventlog`
 - hashing/audit helpers: `sha256_batch`, `sha256_stream`, `verify_hash_chain`
+- text/encoding helpers: `html_to_text`, `detect_encoding`
 - config helpers: `parse_toml`, `validate_toml`, `json_to_toml`, `merge_toml`, `parse_toon`, `to_toon`, `validate_toon`, `json_to_toon`
 - chunking helpers: `extract_calls`, `chunk_code`, `chunk_markdown`, `chunk_text`, `chunk_auto`, `chunk_batch`, `detect_content_type`
 - chunk metadata now includes additive indexing fields: `file_path`, `start_column`, `end_column`, `imports`, `parent_type`, `symbol_kind`, `container_name`, `container_kind`, `symbol_path`, `calls`, `definitions`
