@@ -21,6 +21,8 @@ pub mod eventlog;
 pub mod hashing;
 pub mod json;
 pub mod log;
+pub mod mail;
+pub mod pattern;
 pub mod ranking;
 pub mod surface;
 pub mod text;
@@ -46,6 +48,10 @@ pub use eventlog::{
 pub use hashing::{sha256_batch, verify_hash_chain, HashChainConfig, HashChainVerification};
 pub use json::{parse_ndjson, NDJSONReader};
 pub use log::LogReader;
+pub use mail::{parse_eml, parse_mbox, AttachmentInfo, MailError, ParsedEmail};
+pub use pattern::{
+    compile_regex_patterns, find_literal_matches, find_regex_matches, PatternError, PatternMatch,
+};
 pub use ranking::{hybrid_rank, hybrid_rank_by_name, rrf_fuse, HybridRankMethod, RankingError};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,

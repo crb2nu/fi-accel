@@ -75,6 +75,9 @@ from fi_accel.fi_accel import (
     chunk_auto,
     chunk_batch,
     detect_content_type,
+    MultiPatternMatcher,
+    parse_eml,
+    parse_mbox,
     capabilities,
 )
 
@@ -147,5 +150,8 @@ __all__ = [
     "chunk_auto",
     "chunk_batch",
     "detect_content_type",
+    "MultiPatternMatcher",
+    "parse_eml",
+    "parse_mbox",
     "capabilities",
 ]

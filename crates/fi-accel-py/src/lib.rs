@@ -3,8 +3,8 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, encoding, eventlog, hashing, json, log, ranking, text, tokenizer,
-    toml, toon, transport,
+    chunker, diff, embedding, encoding, eventlog, hashing, json, log, mail, pattern, ranking, text,
+    tokenizer, toml, toon, transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -857,6 +857,63 @@ fn detect_content_type(file_path: &str) -> String {
     }
 }
 
+// ============================================================================
+// Pattern and Mail Helpers
+// ============================================================================
+
+/// Multi-pattern text matcher supporting literal and regex modes.
+#[pyclass]
+struct MultiPatternMatcher {
+    patterns: Vec<String>,
+    regex: bool,
+}
+
+#[pymethods]
+impl MultiPatternMatcher {
+    #[new]
+    #[pyo3(signature = (patterns, regex = false))]
+    fn new(patterns: Vec<String>, regex: bool) -> PyResult<Self> {
+        if regex {
+            pattern::compile_regex_patterns(&patterns)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
+        Ok(Self { patterns, regex })
+    }
+
+    fn find_all(&self, text: &str) -> PyResult<Vec<(usize, usize, usize)>> {
+        let matches = if self.regex {
+            let regexes = pattern::compile_regex_patterns(&self.patterns)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            pattern::find_regex_matches(&regexes, text)
+        } else {
+            pattern::find_literal_matches(&self.patterns, text)
+        };
+
+        Ok(matches
+            .into_iter()
+            .map(|m| (m.pattern_index, m.start, m.end))
+            .collect())
+    }
+}
+
+/// Parse an RFC 822 / EML message into headers, bodies, and attachment metadata.
+#[pyfunction]
+fn parse_eml(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let parsed = mail::parse_eml(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&parsed).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+/// Parse an mbox payload into a list of parsed EML messages.
+#[pyfunction]
+fn parse_mbox(py: Python<'_>, data: &[u8]) -> PyResult<PyObject> {
+    let parsed = mail::parse_mbox(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let payload =
+        serde_json::to_string(&parsed).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
 /// Report the capabilities exposed by the Python binding.
 #[pyfunction]
 fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
@@ -872,6 +929,8 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("chunker_code", true)?;
     dict.set_item("chunker_markdown", true)?;
     dict.set_item("chunker_text", true)?;
+    dict.set_item("pattern_matcher", true)?;
+    dict.set_item("mail_parser", true)?;
     dict.set_item("ffi_available", true)?;
     Ok(dict.into())
 }
@@ -947,6 +1006,11 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(chunk_auto, m)?)?;
     m.add_function(wrap_pyfunction!(chunk_batch, m)?)?;
     m.add_function(wrap_pyfunction!(detect_content_type, m)?)?;
+
+    // Pattern and mail helpers
+    m.add_class::<MultiPatternMatcher>()?;
+    m.add_function(wrap_pyfunction!(parse_eml, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_mbox, m)?)?;
     m.add_function(wrap_pyfunction!(capabilities, m)?)?;
 
     Ok(())
