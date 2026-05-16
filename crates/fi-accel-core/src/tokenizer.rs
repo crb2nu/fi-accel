@@ -32,6 +32,12 @@ fn get_model_encodings() -> &'static HashMap<&'static str, &'static str> {
         m.insert("claude-3-sonnet", "cl100k_base");
         m.insert("claude-3-haiku", "cl100k_base");
         m.insert("claude-3.5-sonnet", "cl100k_base");
+        // Gemma models use SentencePiece upstream. Until exact SentencePiece
+        // assets are bundled, accept the model names with the same conservative
+        // cl100k approximation used for other non-OpenAI models.
+        m.insert("gemma", "cl100k_base");
+        m.insert("gemma-26b", "cl100k_base");
+        m.insert("gemma-26b-a4b", "cl100k_base");
         // Embeddings
         m.insert("text-embedding-ada-002", "cl100k_base");
         m.insert("text-embedding-3-small", "cl100k_base");
@@ -54,17 +60,17 @@ fn get_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
     }
 }
 
-/// Get the appropriate tokenizer for a model
-fn get_tokenizer_for_model(model: &str) -> Result<CoreBPE, TokenizerError> {
+fn get_encoding_name_for_model(model: &str) -> &'static str {
     let encodings = get_model_encodings();
-
-    // First check if model name directly maps to encoding
-    let encoding_name = encodings.get(model).copied().unwrap_or({
+    encodings.get(model).copied().unwrap_or({
         // Default to cl100k_base for unknown models (most common)
         "cl100k_base"
-    });
+    })
+}
 
-    get_encoding(encoding_name)
+/// Get the appropriate tokenizer for a model
+fn get_tokenizer_for_model(model: &str) -> Result<CoreBPE, TokenizerError> {
+    get_encoding(get_encoding_name_for_model(model))
 }
 
 /// Tokenizer wrapper with cached BPE instance
@@ -230,5 +236,40 @@ mod tests {
         // Unknown models should default to cl100k_base
         let result = Tokenizer::new("unknown-model-xyz");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_gemma_models_are_accepted() {
+        for model in ["gemma", "gemma-26b", "gemma-26b-a4b"] {
+            let tokenizer = Tokenizer::new(model).unwrap();
+            assert_eq!(tokenizer.model(), model);
+            assert_eq!(get_encoding_name_for_model(model), "cl100k_base");
+
+            let text = "Gemma tokenizer support accepts model aliases.";
+            assert!(tokenizer.count(text) > 0);
+
+            let truncated = tokenizer.truncate(text, 4);
+            assert!(tokenizer.count(&truncated) <= 4);
+        }
+    }
+
+    #[test]
+    fn test_existing_gpt_and_claude_model_mappings() {
+        let expected = [
+            ("gpt-4", "cl100k_base"),
+            ("gpt-4-turbo", "cl100k_base"),
+            ("gpt-4o", "o200k_base"),
+            ("gpt-4o-mini", "o200k_base"),
+            ("gpt-3.5-turbo", "cl100k_base"),
+            ("claude-3-opus", "cl100k_base"),
+            ("claude-3-sonnet", "cl100k_base"),
+            ("claude-3-haiku", "cl100k_base"),
+            ("claude-3.5-sonnet", "cl100k_base"),
+        ];
+
+        for (model, encoding) in expected {
+            assert_eq!(get_encoding_name_for_model(model), encoding);
+            assert!(Tokenizer::new(model).is_ok());
+        }
     }
 }

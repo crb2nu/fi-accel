@@ -83,6 +83,7 @@ from fi_accel import (
 
 # Token counting
 tokens = count_tokens("Hello, world!", model="gpt-4")  # 4
+gemma_tokens = count_tokens("Hello, Gemma!", model="gemma")
 
 # Token-based text splitting
 chunks = split_by_tokens(long_text, chunk_size=500, overlap=50, model="gpt-4")
@@ -132,6 +133,13 @@ text_chunks = chunk_text(notes)
 # Runtime capability report
 caps = capabilities()
 ```
+
+Tokenizer model support includes OpenAI GPT models, Claude aliases, embeddings,
+legacy Codex/Davinci aliases, and Gemma aliases (`gemma`, `gemma-26b`,
+`gemma-26b-a4b`). Gemma counting currently uses the conservative `cl100k_base`
+fallback because exact SentencePiece tokenizer assets are not bundled yet.
+TODO: add optional SentencePiece-backed Gemma tokenization when model fixtures
+and a suitable Rust dependency are available in the repo.
 
 ### JavaScript/TypeScript
 
