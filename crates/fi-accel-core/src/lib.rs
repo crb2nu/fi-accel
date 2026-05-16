@@ -11,6 +11,7 @@
 //! - **toml**: Fast TOML parsing and conversion
 //! - **toon**: TOON (Token Oriented Object Notation) parsing
 //! - **chunker**: Syntax-aware content chunking (code, markdown, text)
+//! - **ranking**: Hybrid ranking and reciprocal rank fusion helpers
 
 pub mod capabilities;
 pub mod diff;
@@ -18,6 +19,7 @@ pub mod embedding;
 pub mod eventlog;
 pub mod json;
 pub mod log;
+pub mod ranking;
 pub mod surface;
 pub mod toml;
 pub mod toon;
@@ -39,6 +41,7 @@ pub use eventlog::{
 };
 pub use json::parse_ndjson;
 pub use log::LogReader;
+pub use ranking::{hybrid_rank, hybrid_rank_by_name, rrf_fuse, HybridRankMethod, RankingError};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
     normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,
