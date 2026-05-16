@@ -17,6 +17,7 @@ pub mod capabilities;
 pub mod diff;
 pub mod embedding;
 pub mod eventlog;
+pub mod hashing;
 pub mod json;
 pub mod log;
 pub mod ranking;
@@ -39,6 +40,7 @@ pub use eventlog::{
     project_eventlog_ndjson, project_events, summarize_eventlog_ndjson, summarize_events,
     EventProjectionConfig, EventRecord, EventSummary,
 };
+pub use hashing::{sha256_batch, verify_hash_chain, HashChainConfig, HashChainVerification};
 pub use json::parse_ndjson;
 pub use log::LogReader;
 pub use ranking::{hybrid_rank, hybrid_rank_by_name, rrf_fuse, HybridRankMethod, RankingError};

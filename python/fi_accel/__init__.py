@@ -18,6 +18,8 @@ Example usage:
     >>> matrix = cosine_similarity_matrix([[1, 0], [0, 1]], [[1, 0], [0, 1]])
 """
 
+import hashlib
+
 # Import all public functions from the Rust extension
 from fi_accel.fi_accel import (
     # Tokenizer
@@ -49,6 +51,8 @@ from fi_accel.fi_accel import (
     extract_mcp_http_meta,
     project_eventlog,
     summarize_eventlog,
+    sha256_batch,
+    verify_hash_chain,
     # TOML
     parse_toml,
     validate_toml,
@@ -71,6 +75,18 @@ from fi_accel.fi_accel import (
 )
 
 __version__ = "0.1.0"
+
+
+def sha256_stream(reader, chunk_size=65536):
+    """Compute the SHA-256 hex digest for a binary file-like reader."""
+    hasher = hashlib.sha256()
+    while True:
+        chunk = reader.read(chunk_size)
+        if not chunk:
+            break
+        hasher.update(chunk)
+    return hasher.hexdigest()
+
 
 __all__ = [
     # Tokenizer
@@ -102,6 +118,9 @@ __all__ = [
     "extract_mcp_http_meta",
     "project_eventlog",
     "summarize_eventlog",
+    "sha256_batch",
+    "sha256_stream",
+    "verify_hash_chain",
     # TOML
     "parse_toml",
     "validate_toml",

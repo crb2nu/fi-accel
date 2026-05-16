@@ -3,7 +3,8 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, eventlog, json, log, ranking, tokenizer, toml, toon, transport,
+    chunker, diff, embedding, eventlog, hashing, json, log, ranking, tokenizer, toml, toon,
+    transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -449,6 +450,46 @@ fn summarize_eventlog(
 }
 
 // ============================================================================
+// Hashing Module
+// ============================================================================
+
+/// Compute SHA-256 hex digests for a batch of byte strings.
+#[pyfunction]
+fn sha256_batch(items: Vec<Vec<u8>>) -> Vec<String> {
+    hashing::sha256_batch(&items)
+}
+
+/// Verify an append-only hash chain over JSON event objects.
+#[pyfunction]
+#[pyo3(signature = (events, hash_field = "entry_hash", prev_field = "prev_hash", payload_fields = None, seed = ""))]
+fn verify_hash_chain(
+    py: Python<'_>,
+    events: PyObject,
+    hash_field: &str,
+    prev_field: &str,
+    payload_fields: Option<Vec<String>>,
+    seed: &str,
+) -> PyResult<PyObject> {
+    let json_module = py.import_bound("json")?;
+    let json_str: String = json_module
+        .call_method1("dumps", (events,))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
+        .extract()?;
+    let events: Vec<serde_json::Value> =
+        serde_json::from_str(&json_str).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let config = hashing::HashChainConfig {
+        hash_field: hash_field.to_string(),
+        prev_field: prev_field.to_string(),
+        payload_fields,
+        seed: seed.to_string(),
+    };
+    let result = hashing::verify_hash_chain(&events, &config);
+    let payload =
+        serde_json::to_string(&result).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
+// ============================================================================
 // TOML Module
 // ============================================================================
 
@@ -752,6 +793,7 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("simd_json", true)?;
     dict.set_item("transport", true)?;
     dict.set_item("eventlog", true)?;
+    dict.set_item("hashing", true)?;
     dict.set_item("chunker_code", true)?;
     dict.set_item("chunker_markdown", true)?;
     dict.set_item("chunker_text", true)?;
@@ -800,6 +842,10 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_mcp_http_meta, m)?)?;
     m.add_function(wrap_pyfunction!(project_eventlog, m)?)?;
     m.add_function(wrap_pyfunction!(summarize_eventlog, m)?)?;
+
+    // Hashing functions
+    m.add_function(wrap_pyfunction!(sha256_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(verify_hash_chain, m)?)?;
 
     // TOML functions
     m.add_function(wrap_pyfunction!(parse_toml, m)?)?;
