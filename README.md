@@ -136,10 +136,12 @@ caps = capabilities()
 
 Tokenizer model support includes OpenAI GPT models, Claude aliases, embeddings,
 legacy Codex/Davinci aliases, and Gemma aliases (`gemma`, `gemma-26b`,
-`gemma-26b-a4b`). Gemma counting currently uses the conservative `cl100k_base`
-fallback because exact SentencePiece tokenizer assets are not bundled yet.
-TODO: add optional SentencePiece-backed Gemma tokenization when model fixtures
-and a suitable Rust dependency are available in the repo.
+`gemma-26b-a4b`). Gemma aliases require the optional `gemma-tokenizer` feature
+and a local Hugging Face `tokenizer.json` asset configured with
+`FI_ACCEL_GEMMA_TOKENIZER_PATH` or placed at
+`$XDG_CACHE_HOME/fi-accel/gemma/tokenizer.json` (falling back to
+`~/.cache/fi-accel/gemma/tokenizer.json`). fi-accel does not download model
+assets at runtime and no longer approximates Gemma with a GPT tokenizer.
 
 ### JavaScript/TypeScript
 
