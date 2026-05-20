@@ -1,6 +1,7 @@
 package fiaccel
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"sort"
@@ -39,6 +40,30 @@ type McpHTTPMeta struct {
 	AcceptsSSE      bool    `json:"accepts_sse"`
 }
 
+// JSONRPCRouteStatus is the validation status for a route preview.
+type JSONRPCRouteStatus string
+
+const (
+	JSONRPCRouteStatusOK                JSONRPCRouteStatus = "ok"
+	JSONRPCRouteStatusInvalidJSON       JSONRPCRouteStatus = "invalid_json"
+	JSONRPCRouteStatusInvalidJSONRPC    JSONRPCRouteStatus = "invalid_jsonrpc"
+	JSONRPCRouteStatusMissingMethod     JSONRPCRouteStatus = "missing_method"
+	JSONRPCRouteStatusInvalidParams     JSONRPCRouteStatus = "invalid_params"
+	JSONRPCRouteStatusMissingParamsName JSONRPCRouteStatus = "missing_params_name"
+)
+
+// JSONRPCRoutePreview is the minimal routing information needed by MCP
+// gateways before they perform method-specific decoding.
+type JSONRPCRoutePreview struct {
+	Method       string             `json:"method,omitempty"`
+	HasID        bool               `json:"has_id"`
+	ParamsName   *string            `json:"params_name,omitempty"`
+	InputBytes   int                `json:"input_bytes"`
+	Valid        bool               `json:"valid"`
+	Status       JSONRPCRouteStatus `json:"status"`
+	ErrorMessage string             `json:"error,omitempty"`
+}
+
 // ParseJSONRPCLines parses newline-delimited JSON-RPC messages.
 func ParseJSONRPCLines(data []byte) ([]JSONRPCMessage, error) {
 	raw, err := parseJSONRPCLines(data)
@@ -54,6 +79,46 @@ func ParseJSONRPCLines(data []byte) ([]JSONRPCMessage, error) {
 		return nil, &Error{Code: ErrFailed, Message: err.Error()}
 	}
 	return messages, nil
+}
+
+// ParseJSONRPCRoutePreview parses a single JSON-RPC payload into routing
+// metadata. It is intentionally pure Go so services can use it without CGo.
+func ParseJSONRPCRoutePreview(data []byte) (JSONRPCRoutePreview, error) {
+	preview := JSONRPCRoutePreview{
+		InputBytes: len(data),
+		Status:     JSONRPCRouteStatusOK,
+	}
+
+	var envelope jsonrpcRouteEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSON, err.Error())
+	}
+
+	jsonrpc, err := envelope.JSONRPC.stringValue("jsonrpc")
+	if err != nil || jsonrpc != "2.0" {
+		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSONRPC, "jsonrpc must be \"2.0\"")
+	}
+
+	method, err := envelope.Method.stringValue("method")
+	if err != nil {
+		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSONRPC, err.Error())
+	}
+	if method == "" {
+		return invalidRoutePreview(preview, JSONRPCRouteStatusMissingMethod, "method is required")
+	}
+	preview.Method = method
+	preview.HasID = envelope.ID.hasNonNullValue()
+
+	if method == "tools/call" {
+		name, err := routePreviewParamsName(envelope.Params)
+		if err != nil {
+			return invalidRoutePreview(preview, routePreviewParamStatus(err), err.Error())
+		}
+		preview.ParamsName = &name
+	}
+
+	preview.Valid = true
+	return preview, nil
 }
 
 // SerializeJSONRPCLines serializes JSON-RPC messages into line-delimited framing.
@@ -125,4 +190,76 @@ func encodeHTTPHeaders(headers http.Header) []byte {
 		}
 	}
 	return []byte(builder.String())
+}
+
+type jsonRawField struct {
+	Present bool
+	Value   json.RawMessage
+}
+
+func (field *jsonRawField) UnmarshalJSON(data []byte) error {
+	field.Present = true
+	field.Value = append(field.Value[:0], data...)
+	return nil
+}
+
+func (field jsonRawField) hasNonNullValue() bool {
+	if !field.Present {
+		return false
+	}
+	return !bytes.Equal(bytes.TrimSpace(field.Value), []byte("null"))
+}
+
+func (field jsonRawField) stringValue(name string) (string, error) {
+	if !field.hasNonNullValue() {
+		return "", nil
+	}
+
+	var value string
+	if err := json.Unmarshal(field.Value, &value); err != nil {
+		return "", &Error{Code: ErrInvalidArg, Message: name + " must be a string"}
+	}
+	return value, nil
+}
+
+type jsonrpcRouteEnvelope struct {
+	JSONRPC jsonRawField `json:"jsonrpc"`
+	ID      jsonRawField `json:"id"`
+	Method  jsonRawField `json:"method"`
+	Params  jsonRawField `json:"params"`
+}
+
+type jsonrpcToolsCallParams struct {
+	Name *string `json:"name"`
+}
+
+var errMissingParamsName = &Error{Code: ErrInvalidArg, Message: "tools/call params.name is required"}
+
+func routePreviewParamsName(params jsonRawField) (string, error) {
+	if !params.hasNonNullValue() {
+		return "", errMissingParamsName
+	}
+
+	var decoded jsonrpcToolsCallParams
+	if err := json.Unmarshal(params.Value, &decoded); err != nil {
+		return "", &Error{Code: ErrInvalidArg, Message: "tools/call params must be an object"}
+	}
+	if decoded.Name == nil || *decoded.Name == "" {
+		return "", errMissingParamsName
+	}
+	return *decoded.Name, nil
+}
+
+func routePreviewParamStatus(err error) JSONRPCRouteStatus {
+	if err == errMissingParamsName {
+		return JSONRPCRouteStatusMissingParamsName
+	}
+	return JSONRPCRouteStatusInvalidParams
+}
+
+func invalidRoutePreview(preview JSONRPCRoutePreview, status JSONRPCRouteStatus, message string) (JSONRPCRoutePreview, error) {
+	preview.Valid = false
+	preview.Status = status
+	preview.ErrorMessage = message
+	return preview, &Error{Code: ErrInvalidArg, Message: message}
 }

@@ -247,6 +247,9 @@ func main() {
 	messages, _ := fiaccel.ParseJSONRPCLines([]byte("{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}\n"))
 	fmt.Println(len(messages))
 
+	preview, _ := fiaccel.ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup"}}`))
+	fmt.Println(preview.Method, preview.HasID, *preview.ParamsName)
+
 	events, _ := fiaccel.ParseSSEEvents([]byte("event: message\ndata: hello\n\n"))
 	fmt.Println(events[0].Data)
 
@@ -270,6 +273,7 @@ func main() {
 | Fuzzy patch (10K lines) | 500ms | 5ms | 100x |
 | NDJSON parse (1MB) | 50ms | 5ms | 10x |
 | JSON-RPC framing (100 msgs) | 20ms | 2ms | 10x |
+| JSON-RPC route preview (single tools/call) | gateway route baseline: 2.22-2.44us | Go helper: 1.32-1.35us | ~1.7x |
 | SSE parse (100 events) | 10ms | 1ms | 10x |
 | TOML parse (100KB) | 10ms | 1ms | 10x |
 | TOON parse (10KB) | 5ms | 0.5ms | 10x |
