@@ -3,6 +3,7 @@ variables:
   RUST_VERSION: "1.85"
   WASM_PACK_VERSION: "0.13.1"
   PYTHON_VERSION: "3.11"
+  GO_VERSION: "1.22"
 
 default:
   image: rust:${RUST_VERSION}
@@ -114,6 +115,14 @@ test:wasm:
   script:
     - cd crates/fi-accel-wasm
     - cargo test
+  allow_failure: false
+
+test:go:
+  stage: test
+  image: golang:${GO_VERSION}
+  script:
+    - cd go/fiaccel
+    - CGO_ENABLED=0 go test ./...
   allow_failure: false
 
 # ============================================================================
