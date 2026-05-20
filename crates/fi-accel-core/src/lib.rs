@@ -12,6 +12,7 @@
 //! - **toon**: TOON (Token Oriented Object Notation) parsing
 //! - **chunker**: Syntax-aware content chunking (code, markdown, text)
 //! - **ranking**: Hybrid ranking and reciprocal rank fusion helpers
+//! - **scout**: Hot-path observation summaries for adoption planning
 
 pub mod capabilities;
 pub mod diff;
@@ -24,6 +25,7 @@ pub mod log;
 pub mod mail;
 pub mod pattern;
 pub mod ranking;
+pub mod scout;
 pub mod surface;
 pub mod text;
 pub mod toml;
@@ -53,6 +55,10 @@ pub use pattern::{
     compile_regex_patterns, find_literal_matches, find_regex_matches, PatternError, PatternMatch,
 };
 pub use ranking::{hybrid_rank, hybrid_rank_by_name, rrf_fuse, HybridRankMethod, RankingError};
+pub use scout::{
+    summarize_accel_observation_ndjson, summarize_accel_observations, AccelOperationSummary,
+    AccelScoutConfig,
+};
 pub use surface::{
     analyze_log_lines, detect_log_level, filter_label_selector_matches, matches_label_selector,
     normalize_ci_job_status, normalize_ci_pipeline_status, SurfaceCiStatus, SurfaceLogFilter,

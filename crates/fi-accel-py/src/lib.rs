@@ -3,8 +3,8 @@
 //! Exposes high-performance Rust implementations to Python via PyO3.
 
 use fi_accel_core::{
-    chunker, diff, embedding, encoding, eventlog, hashing, json, log, mail, pattern, ranking, text,
-    tokenizer, toml, toon, transport,
+    chunker, diff, embedding, encoding, eventlog, hashing, json, log, mail, pattern, ranking,
+    scout, text, tokenizer, toml, toon, transport,
 };
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -498,6 +498,33 @@ fn summarize_eventlog(
     json_str_to_py(py, payload)
 }
 
+/// Summarize NDJSON operation observations into ranked acceleration candidates.
+#[pyfunction]
+#[pyo3(signature = (data, operation_field = "operation", service_field = Some("service".to_string()), duration_ms_field = "duration_ms", input_bytes_field = Some("input_bytes".to_string()), fallback_field = Some("fallback".to_string()), limit = None))]
+fn summarize_accel_observations(
+    py: Python<'_>,
+    data: &[u8],
+    operation_field: &str,
+    service_field: Option<String>,
+    duration_ms_field: &str,
+    input_bytes_field: Option<String>,
+    fallback_field: Option<String>,
+    limit: Option<usize>,
+) -> PyResult<PyObject> {
+    let config = scout::AccelScoutConfig {
+        operation_field: operation_field.to_string(),
+        service_field,
+        duration_ms_field: duration_ms_field.to_string(),
+        input_bytes_field,
+        fallback_field,
+        limit,
+    };
+    let summaries = scout::summarize_accel_observation_ndjson(data, &config);
+    let payload =
+        serde_json::to_string(&summaries).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    json_str_to_py(py, payload)
+}
+
 // ============================================================================
 // Hashing Module
 // ============================================================================
@@ -922,6 +949,7 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
     dict.set_item("simd_json", true)?;
     dict.set_item("transport", true)?;
     dict.set_item("eventlog", true)?;
+    dict.set_item("accel_scout", true)?;
     dict.set_item("ranking", true)?;
     dict.set_item("hashing", true)?;
     dict.set_item("text", true)?;
@@ -977,6 +1005,7 @@ fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(extract_mcp_http_meta, m)?)?;
     m.add_function(wrap_pyfunction!(project_eventlog, m)?)?;
     m.add_function(wrap_pyfunction!(summarize_eventlog, m)?)?;
+    m.add_function(wrap_pyfunction!(summarize_accel_observations, m)?)?;
 
     // Hashing functions
     m.add_function(wrap_pyfunction!(sha256_batch, m)?)?;
