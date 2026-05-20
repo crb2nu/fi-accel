@@ -77,6 +77,8 @@ Priority key: **P1** = unblocks a near-term ICC slice (M51-M52). **P2** = clear 
 - Existing GPT/Claude paths unchanged.
 - README capability table updated.
 
+**2026-05-20 status:** Gemma aliases now require the optional `gemma-tokenizer` feature and a local Hugging Face `tokenizer.json`; fi-accel does not approximate Gemma with GPT tokenizers. An opt-in Rust exactness fixture compares fi-accel counts against the local Hugging Face tokenizer on 100 strings when `FI_ACCEL_GEMMA_TOKENIZER_PATH` is set, and exits successfully without an asset when the variable is unset.
+
 **Estimate:** M (depends on whether tiktoken-rs has the Gemma SentencePiece model bundled; if not, add the `sentencepiece` crate behind a feature flag and gate the binary-size hit).
 
 ---
