@@ -247,8 +247,8 @@ func main() {
 	messages, _ := fiaccel.ParseJSONRPCLines([]byte("{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}\n"))
 	fmt.Println(len(messages))
 
-	preview, _ := fiaccel.ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup"}}`))
-	fmt.Println(preview.Method, preview.HasID, *preview.ParamsName)
+	preview, _ := fiaccel.ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`))
+	fmt.Println(preview.Method, preview.HasID, *preview.ParamsName, string(preview.ParamsArguments))
 
 	events, _ := fiaccel.ParseSSEEvents([]byte("event: message\ndata: hello\n\n"))
 	fmt.Println(events[0].Data)

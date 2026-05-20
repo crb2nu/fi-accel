@@ -88,11 +88,12 @@ Rerun the `fi-mcp-gateway` route benchmark after that helper exists. Promote ser
 
 ## Route Preview Slice
 
-The follow-up slice added `ParseJSONRPCRoutePreview` to the Go binding as a pure Go helper so services can use it with or without CGo. It previews a single JSON-RPC payload and reports method, non-null id presence, `tools/call` `params.name`, input bytes, `valid`, and a parse/validation status.
+The follow-up slice added `ParseJSONRPCRoutePreview` to the Go binding as a pure Go helper so services can use it with or without CGo. It previews a single JSON-RPC payload and reports method, non-null id presence, `tools/call` `params.name`, raw `params.arguments`, input bytes, `valid`, and a parse/validation status.
 
 Validation now covers:
 
 - request versus notification id handling, including `id: null`
+- raw `tools/call` `params.arguments` capture for service routers
 - invalid JSON
 - missing `tools/call` `params.name`
 
@@ -108,6 +109,25 @@ Results on Apple M4:
 
 | Benchmark | ns/op | B/op | allocs/op |
 | --- | ---: | ---: | ---: |
-| `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1324-1348 | 1096 | 26 |
+| `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1409-1531 | 1136 | 27 |
 
-This clears the standalone helper side of the kill-test against the earlier `fi-mcp-gateway` `routeMessage` baseline of 2221-2444 ns/op and 1608 B/op. It is not yet a downstream integration result; the next slice should replace the duplicate route decode in `fi-mcp-gateway` and preserve routing behavior under service-local tests.
+This keeps the standalone helper competitive while exposing enough route data to avoid a second envelope/params decode in downstream services.
+
+## Route Preview Arguments Adoption Probe
+
+A follow-up `fi-mcp-gateway` worktree replaced the service-local route metadata decode with `ParseJSONRPCRoutePreview` and used the new raw `ParamsArguments` field for argument-based routing. Service-local behavior tests passed for argument routing, bound-server fallback, and invalid JSON handling.
+
+Temporary benchmark command from `services/fi-mcp-gateway`:
+
+```bash
+go test ./internal/mcpws -run '^$' -bench 'Benchmark(RouteMessageToolsCall|JSONRPCEnvelopeUnmarshal)$' -benchmem -count=5
+```
+
+Results on Apple M4:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkRouteMessageToolsCall` | 1927-2016 | 1728 | 37 |
+| `BenchmarkJSONRPCEnvelopeUnmarshal` | 761-777 | 416 | 10 |
+
+Compared with the earlier service baseline of 2221-2444 ns/op and 1608 B/op, the integration probe improves wall time but does not reliably clear a full 20% improvement across the observed ranges and does not reduce allocations. Promote the service integration only after either reducing preview allocations or confirming the route benchmark on the exact production payload mix.
