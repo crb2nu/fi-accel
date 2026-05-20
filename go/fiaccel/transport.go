@@ -55,13 +55,14 @@ const (
 // JSONRPCRoutePreview is the minimal routing information needed by MCP
 // gateways before they perform method-specific decoding.
 type JSONRPCRoutePreview struct {
-	Method       string             `json:"method,omitempty"`
-	HasID        bool               `json:"has_id"`
-	ParamsName   *string            `json:"params_name,omitempty"`
-	InputBytes   int                `json:"input_bytes"`
-	Valid        bool               `json:"valid"`
-	Status       JSONRPCRouteStatus `json:"status"`
-	ErrorMessage string             `json:"error,omitempty"`
+	Method          string             `json:"method,omitempty"`
+	HasID           bool               `json:"has_id"`
+	ParamsName      *string            `json:"params_name,omitempty"`
+	ParamsArguments json.RawMessage    `json:"params_arguments,omitempty"`
+	InputBytes      int                `json:"input_bytes"`
+	Valid           bool               `json:"valid"`
+	Status          JSONRPCRouteStatus `json:"status"`
+	ErrorMessage    string             `json:"error,omitempty"`
 }
 
 // ParseJSONRPCLines parses newline-delimited JSON-RPC messages.
@@ -110,11 +111,12 @@ func ParseJSONRPCRoutePreview(data []byte) (JSONRPCRoutePreview, error) {
 	preview.HasID = envelope.ID.hasNonNullValue()
 
 	if method == "tools/call" {
-		name, err := routePreviewParamsName(envelope.Params)
+		name, args, err := routePreviewToolParams(envelope.Params)
 		if err != nil {
 			return invalidRoutePreview(preview, routePreviewParamStatus(err), err.Error())
 		}
 		preview.ParamsName = &name
+		preview.ParamsArguments = args
 	}
 
 	preview.Valid = true
@@ -230,24 +232,25 @@ type jsonrpcRouteEnvelope struct {
 }
 
 type jsonrpcToolsCallParams struct {
-	Name *string `json:"name"`
+	Name      *string         `json:"name"`
+	Arguments json.RawMessage `json:"arguments,omitempty"`
 }
 
 var errMissingParamsName = &Error{Code: ErrInvalidArg, Message: "tools/call params.name is required"}
 
-func routePreviewParamsName(params jsonRawField) (string, error) {
+func routePreviewToolParams(params jsonRawField) (string, json.RawMessage, error) {
 	if !params.hasNonNullValue() {
-		return "", errMissingParamsName
+		return "", nil, errMissingParamsName
 	}
 
 	var decoded jsonrpcToolsCallParams
 	if err := json.Unmarshal(params.Value, &decoded); err != nil {
-		return "", &Error{Code: ErrInvalidArg, Message: "tools/call params must be an object"}
+		return "", nil, &Error{Code: ErrInvalidArg, Message: "tools/call params must be an object"}
 	}
 	if decoded.Name == nil || *decoded.Name == "" {
-		return "", errMissingParamsName
+		return "", nil, errMissingParamsName
 	}
-	return *decoded.Name, nil
+	return *decoded.Name, decoded.Arguments, nil
 }
 
 func routePreviewParamStatus(err error) JSONRPCRouteStatus {

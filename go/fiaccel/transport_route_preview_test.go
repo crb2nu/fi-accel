@@ -1,6 +1,9 @@
 package fiaccel
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 var routePreviewSink JSONRPCRoutePreview
 
@@ -20,6 +23,9 @@ func TestParseJSONRPCRoutePreviewToolsCall(t *testing.T) {
 	if preview.ParamsName == nil || *preview.ParamsName != "lookup" {
 		t.Fatalf("unexpected params.name: %+v", preview)
 	}
+	if !bytes.Equal(preview.ParamsArguments, []byte(`{"q":"hello"}`)) {
+		t.Fatalf("unexpected params.arguments: %s", preview.ParamsArguments)
+	}
 	if preview.InputBytes != len(payload) {
 		t.Fatalf("expected input bytes %d, got %d", len(payload), preview.InputBytes)
 	}
@@ -35,6 +41,9 @@ func TestParseJSONRPCRoutePreviewNotification(t *testing.T) {
 	}
 	if preview.Method != "notifications/initialized" || preview.ParamsName != nil {
 		t.Fatalf("unexpected notification preview: %+v", preview)
+	}
+	if len(preview.ParamsArguments) != 0 {
+		t.Fatalf("unexpected notification params.arguments: %s", preview.ParamsArguments)
 	}
 }
 
