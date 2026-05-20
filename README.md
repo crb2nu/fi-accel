@@ -273,7 +273,8 @@ func main() {
 | Fuzzy patch (10K lines) | 500ms | 5ms | 100x |
 | NDJSON parse (1MB) | 50ms | 5ms | 10x |
 | JSON-RPC framing (100 msgs) | 20ms | 2ms | 10x |
-| JSON-RPC route preview (single tools/call) | gateway route baseline: 2.22-2.44us | Go helper: 1.32-1.35us | ~1.7x |
+| JSON-RPC route preview (small tools/call) | gateway route baseline: 2.22-2.44us | Go helper: 1.24-1.33us | ~1.8x |
+| JSON-RPC route preview (gateway-shaped tools/call) | pending service rerun | Go helper: 5.12-5.44us | fixture baseline |
 | SSE parse (100 events) | 10ms | 1ms | 10x |
 | TOML parse (100KB) | 10ms | 1ms | 10x |
 | TOON parse (10KB) | 5ms | 0.5ms | 10x |

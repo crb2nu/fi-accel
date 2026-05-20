@@ -7,8 +7,12 @@ import (
 
 var routePreviewSink JSONRPCRoutePreview
 
+var routePreviewSmallToolsCallPayload = []byte(`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`)
+
+var routePreviewGatewayToolsCallPayload = []byte(`{"jsonrpc":"2.0","id":"req-2026-05-20T18:40:00.000Z-00042","method":"tools/call","params":{"name":"agent_context__agent_context_recall_enhanced","arguments":{"query":"fi-accel route preview production payload benchmark","namespace":"fi-accel/ralph-loop","cross_agent":true,"include_decisions":true,"include_summaries":true,"include_tasks":true,"scope":["context","memory"],"token_budget":4000,"file_context":"services/fi-mcp-gateway/internal/mcpws/mcpws.go","metadata":{"tenant":"flexinfer","profile":"default","request_source":"websocket","trace_id":"01HVZ7W2N6V9P9FX4T6T2FQ6KM"}}}}`)
+
 func TestParseJSONRPCRoutePreviewToolsCall(t *testing.T) {
-	payload := []byte(`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`)
+	payload := routePreviewSmallToolsCallPayload
 
 	preview, err := ParseJSONRPCRoutePreview(payload)
 	if err != nil {
@@ -28,6 +32,28 @@ func TestParseJSONRPCRoutePreviewToolsCall(t *testing.T) {
 	}
 	if preview.InputBytes != len(payload) {
 		t.Fatalf("expected input bytes %d, got %d", len(payload), preview.InputBytes)
+	}
+}
+
+func TestParseJSONRPCRoutePreviewGatewayToolsCall(t *testing.T) {
+	preview, err := ParseJSONRPCRoutePreview(routePreviewGatewayToolsCallPayload)
+	if err != nil {
+		t.Fatalf("ParseJSONRPCRoutePreview: %v", err)
+	}
+	if !preview.Valid || preview.Status != JSONRPCRouteStatusOK {
+		t.Fatalf("unexpected status: %+v", preview)
+	}
+	if preview.Method != "tools/call" || !preview.HasID {
+		t.Fatalf("unexpected route fields: %+v", preview)
+	}
+	if preview.ParamsName == nil || *preview.ParamsName != "agent_context__agent_context_recall_enhanced" {
+		t.Fatalf("unexpected params.name: %+v", preview)
+	}
+	if !bytes.Contains(preview.ParamsArguments, []byte(`"token_budget":4000`)) {
+		t.Fatalf("expected production-shaped arguments, got: %s", preview.ParamsArguments)
+	}
+	if preview.InputBytes != len(routePreviewGatewayToolsCallPayload) {
+		t.Fatalf("expected input bytes %d, got %d", len(routePreviewGatewayToolsCallPayload), preview.InputBytes)
 	}
 }
 
@@ -96,7 +122,21 @@ func TestParseJSONRPCRoutePreviewMissingToolsName(t *testing.T) {
 }
 
 func BenchmarkParseJSONRPCRoutePreviewToolsCall(b *testing.B) {
-	payload := []byte(`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`)
+	payload := routePreviewSmallToolsCallPayload
+	b.SetBytes(int64(len(payload)))
+
+	for i := 0; i < b.N; i++ {
+		preview, err := ParseJSONRPCRoutePreview(payload)
+		if err != nil {
+			b.Fatal(err)
+		}
+		routePreviewSink = preview
+	}
+}
+
+func BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall(b *testing.B) {
+	payload := routePreviewGatewayToolsCallPayload
+	b.SetBytes(int64(len(payload)))
 
 	for i := 0; i < b.N; i++ {
 		preview, err := ParseJSONRPCRoutePreview(payload)
