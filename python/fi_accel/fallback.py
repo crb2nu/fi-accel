@@ -391,6 +391,110 @@ def summarize_eventlog(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return {"total": len(events), "by_event_type": by_type, "by_actor_id": by_actor}
 
 
+def _field_value(row: dict[str, Any], field_path: str) -> Any:
+    current: Any = row
+    for segment in field_path.split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return None
+        current = current[segment]
+    return current
+
+
+def summarize_accel_observations(
+    data: bytes,
+    operation_field: str = "operation",
+    service_field: str | None = "service",
+    duration_ms_field: str = "duration_ms",
+    input_bytes_field: str | None = "input_bytes",
+    fallback_field: str | None = "fallback",
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    rows = parse_ndjson(data)
+    if limit is not None:
+        rows = rows[:limit]
+
+    grouped: dict[tuple[str | None, str], dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        operation = _field_value(row, operation_field)
+        duration = _field_value(row, duration_ms_field)
+        if operation in (None, ""):
+            continue
+        try:
+            duration_ms = float(duration)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(duration_ms) or duration_ms < 0:
+            continue
+
+        service = _field_value(row, service_field) if service_field else None
+        key = (str(service) if service is not None else None, str(operation))
+        group = grouped.setdefault(
+            key,
+            {
+                "durations": [],
+                "total_input_bytes": 0,
+                "input_sample_count": 0,
+                "fallback_count": 0,
+            },
+        )
+        group["durations"].append(duration_ms)
+
+        input_bytes = _field_value(row, input_bytes_field) if input_bytes_field else None
+        try:
+            parsed_input_bytes = int(input_bytes)
+        except (TypeError, ValueError):
+            parsed_input_bytes = None
+        if parsed_input_bytes is not None and parsed_input_bytes >= 0:
+            group["total_input_bytes"] += parsed_input_bytes
+            group["input_sample_count"] += 1
+
+        fallback = _field_value(row, fallback_field) if fallback_field else False
+        if isinstance(fallback, str):
+            fallback = fallback.lower() in {"true", "1", "yes"}
+        if bool(fallback):
+            group["fallback_count"] += 1
+
+    summaries: list[dict[str, Any]] = []
+    for (service, operation), group in grouped.items():
+        durations = sorted(group["durations"])
+        sample_count = len(durations)
+        total_duration_ms = sum(durations)
+        fallback_count = group["fallback_count"]
+        fallback_rate = fallback_count / sample_count
+        p95_index = min(len(durations) - 1, max(0, math.ceil(len(durations) * 0.95) - 1))
+        summary: dict[str, Any] = {
+            "operation": operation,
+            "sample_count": sample_count,
+            "total_duration_ms": total_duration_ms,
+            "avg_duration_ms": total_duration_ms / sample_count,
+            "p95_duration_ms": durations[p95_index],
+            "max_duration_ms": durations[-1],
+            "total_input_bytes": group["total_input_bytes"],
+            "fallback_count": fallback_count,
+            "fallback_rate": fallback_rate,
+            "candidate_score": total_duration_ms * (1.0 + fallback_rate),
+        }
+        if service is not None:
+            summary["service"] = service
+        if group["input_sample_count"]:
+            summary["avg_input_bytes"] = (
+                group["total_input_bytes"] / group["input_sample_count"]
+            )
+        summaries.append(summary)
+
+    return sorted(
+        summaries,
+        key=lambda item: (
+            -item["candidate_score"],
+            -item["total_duration_ms"],
+            -item["sample_count"],
+            item["operation"],
+        ),
+    )
+
+
 def sha256_batch(items: list[bytes]) -> list[str]:
     return [hashlib.sha256(item).hexdigest() for item in items]
 
@@ -684,6 +788,7 @@ def capabilities() -> dict[str, bool]:
         "simd_json": False,
         "transport": True,
         "eventlog": True,
+        "accel_scout": True,
         "ranking": True,
         "hashing": True,
         "text": True,
@@ -723,6 +828,7 @@ __all__ = [
     "extract_mcp_http_meta",
     "project_eventlog",
     "summarize_eventlog",
+    "summarize_accel_observations",
     "sha256_batch",
     "verify_hash_chain",
     "html_to_text",

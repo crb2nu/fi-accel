@@ -14,6 +14,7 @@ High-performance Rust acceleration library for agent/MCP workflows.
 - **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
 - **Text Ingestion**: HTML-to-text extraction, encoding detection, and strict streaming NDJSON reads
 - **Event Log Helpers**: Normalize and summarize JSONL timeline/audit streams
+- **Acceleration Scout**: Summarize service hot-path observations for adoption planning
 - **Transport Helpers**: JSON-RPC stdio framing, SSE parsing, and MCP Streamable HTTP header extraction
 - **TOML Parsing**: Fast TOML parsing with JSON interop and config merging
 - **TOON Parsing**: Token Oriented Object Notation for efficient LLM serialization
@@ -52,6 +53,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | JSON / JSON-RPC | full | full | partial | full |
 | text / encoding ingest | full | full | unsupported | unsupported |
 | eventlog | full | full | full | full |
+| acceleration scout | full | full | unsupported | unsupported |
 | transport | full | full | full | full |
 | TOML | full | full | unsupported | full |
 | TOON | full | full | unsupported | full |
@@ -79,6 +81,7 @@ from fi_accel import (
     parse_jsonrpc_batch,
     project_eventlog,
     summarize_eventlog,
+    summarize_accel_observations,
     parse_toml,
     merge_toml,
     parse_toon,
@@ -129,6 +132,9 @@ events = project_eventlog(
 )
 summary = summarize_eventlog(
     b'{"timestamp":"2026-03-18T10:00:00Z","event_type":"agent.started","agent_id":"codex"}\n'
+)
+hot_paths = summarize_accel_observations(
+    b'{"service":"gateway","operation":"parse_jsonrpc","duration_ms":12.5,"input_bytes":4096}\n'
 )
 
 # TOML parsing
