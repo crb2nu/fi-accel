@@ -85,3 +85,29 @@ Add a route-preview helper in `fi-accel` instead of a downstream service change.
 - parse/validation status
 
 Rerun the `fi-mcp-gateway` route benchmark after that helper exists. Promote service integration only if the helper beats the current `routeMessage` path by at least 20% wall time or preserves behavior while materially reducing allocations.
+
+## Route Preview Slice
+
+The follow-up slice added `ParseJSONRPCRoutePreview` to the Go binding as a pure Go helper so services can use it with or without CGo. It previews a single JSON-RPC payload and reports method, non-null id presence, `tools/call` `params.name`, input bytes, `valid`, and a parse/validation status.
+
+Validation now covers:
+
+- request versus notification id handling, including `id: null`
+- invalid JSON
+- missing `tools/call` `params.name`
+
+The next service-adoption step is still gated on rerunning `fi-mcp-gateway` route benchmarks with this helper in place.
+
+Temporary benchmark command:
+
+```bash
+go test ./... -run '^$' -bench 'BenchmarkParseJSONRPCRoutePreviewToolsCall$' -benchmem -count=5
+```
+
+Results on Apple M4:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1324-1348 | 1096 | 26 |
+
+This clears the standalone helper side of the kill-test against the earlier `fi-mcp-gateway` `routeMessage` baseline of 2221-2444 ns/op and 1608 B/op. It is not yet a downstream integration result; the next slice should replace the duplicate route decode in `fi-mcp-gateway` and preserve routing behavior under service-local tests.
