@@ -151,3 +151,22 @@ Results on Apple M4:
 | `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1135-1156 | 744 | 21 |
 
 Compared with the previous standalone helper range of 1409-1531 ns/op, 1136 B/op, and 27 allocs/op, this reduces both wall time and allocation pressure. Service integration still needs a fresh `fi-mcp-gateway` benchmark against production-shaped payloads before promotion.
+
+## Production-Shaped Route Preview Fixture
+
+The next slice added a larger gateway-shaped `tools/call` fixture to the Go route-preview tests and benchmarks. The fixture models an MCP gateway request with a string request id, a long tool name, nested arguments, context/memory scope fields, a file-context path, and request metadata. This does not change runtime behavior; it creates a stable local payload for the downstream service rerun to match.
+
+Benchmark command:
+
+```bash
+go test ./... -run '^$' -bench 'BenchmarkParseJSONRPCRoutePreview(ToolsCall|GatewayToolsCall)$' -benchmem -count=5
+```
+
+Results on Apple M4:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1241-1334 | 744 | 21 |
+| `BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall` | 5123-5436 | 1744 | 22 |
+
+The service adoption gate is unchanged: rerun `fi-mcp-gateway` route benchmarks with a matching production-shaped payload and promote integration only if behavior is preserved and the helper clears the documented wall-time or allocation threshold.
