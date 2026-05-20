@@ -131,3 +131,23 @@ Results on Apple M4:
 | `BenchmarkJSONRPCEnvelopeUnmarshal` | 761-777 | 416 | 10 |
 
 Compared with the earlier service baseline of 2221-2444 ns/op and 1608 B/op, the integration probe improves wall time but does not reliably clear a full 20% improvement across the observed ranges and does not reduce allocations. Promote the service integration only after either reducing preview allocations or confirming the route benchmark on the exact production payload mix.
+
+## Route Preview Allocation Reduction
+
+The next slice reduced standalone `ParseJSONRPCRoutePreview` allocations by decoding top-level `jsonrpc` and `method` directly while retaining raw JSON only for `id` presence checks and nested `tools/call` params extraction. The public helper shape is unchanged.
+
+Validation now additionally covers invalid top-level `jsonrpc` and `method` field types, which are classified as invalid JSON-RPC rather than malformed JSON.
+
+Benchmark command:
+
+```bash
+go test ./... -run '^$' -bench 'BenchmarkParseJSONRPCRoutePreviewToolsCall$' -benchmem -count=5
+```
+
+Results on Apple M4:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkParseJSONRPCRoutePreviewToolsCall` | 1135-1156 | 744 | 21 |
+
+Compared with the previous standalone helper range of 1409-1531 ns/op, 1136 B/op, and 27 allocs/op, this reduces both wall time and allocation pressure. Service integration still needs a fresh `fi-mcp-gateway` benchmark against production-shaped payloads before promotion.

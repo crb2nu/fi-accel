@@ -67,6 +67,24 @@ func TestParseJSONRPCRoutePreviewInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParseJSONRPCRoutePreviewInvalidFieldTypes(t *testing.T) {
+	preview, err := ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":2,"method":"ping"}`))
+	if err == nil {
+		t.Fatal("expected invalid jsonrpc type error")
+	}
+	if preview.Valid || preview.Status != JSONRPCRouteStatusInvalidJSONRPC {
+		t.Fatalf("unexpected invalid jsonrpc type preview: %+v", preview)
+	}
+
+	preview, err = ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","method":7}`))
+	if err == nil {
+		t.Fatal("expected invalid method type error")
+	}
+	if preview.Valid || preview.Status != JSONRPCRouteStatusInvalidJSONRPC {
+		t.Fatalf("unexpected invalid method type preview: %+v", preview)
+	}
+}
+
 func TestParseJSONRPCRoutePreviewMissingToolsName(t *testing.T) {
 	preview, err := ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"arguments":{}}}`))
 	if err == nil {

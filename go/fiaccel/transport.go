@@ -3,6 +3,8 @@ package fiaccel
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -92,25 +94,24 @@ func ParseJSONRPCRoutePreview(data []byte) (JSONRPCRoutePreview, error) {
 
 	var envelope jsonrpcRouteEnvelope
 	if err := json.Unmarshal(data, &envelope); err != nil {
-		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSON, err.Error())
+		status := JSONRPCRouteStatusInvalidJSON
+		if !isJSONSyntaxError(err) {
+			status = JSONRPCRouteStatusInvalidJSONRPC
+		}
+		return invalidRoutePreview(preview, status, err.Error())
 	}
 
-	jsonrpc, err := envelope.JSONRPC.stringValue("jsonrpc")
-	if err != nil || jsonrpc != "2.0" {
+	if envelope.JSONRPC != "2.0" {
 		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSONRPC, "jsonrpc must be \"2.0\"")
 	}
 
-	method, err := envelope.Method.stringValue("method")
-	if err != nil {
-		return invalidRoutePreview(preview, JSONRPCRouteStatusInvalidJSONRPC, err.Error())
-	}
-	if method == "" {
+	if envelope.Method == "" {
 		return invalidRoutePreview(preview, JSONRPCRouteStatusMissingMethod, "method is required")
 	}
-	preview.Method = method
-	preview.HasID = envelope.ID.hasNonNullValue()
+	preview.Method = envelope.Method
+	preview.HasID = hasNonNullJSONValue(envelope.ID)
 
-	if method == "tools/call" {
+	if envelope.Method == "tools/call" {
 		name, args, err := routePreviewToolParams(envelope.Params)
 		if err != nil {
 			return invalidRoutePreview(preview, routePreviewParamStatus(err), err.Error())
@@ -194,41 +195,11 @@ func encodeHTTPHeaders(headers http.Header) []byte {
 	return []byte(builder.String())
 }
 
-type jsonRawField struct {
-	Present bool
-	Value   json.RawMessage
-}
-
-func (field *jsonRawField) UnmarshalJSON(data []byte) error {
-	field.Present = true
-	field.Value = append(field.Value[:0], data...)
-	return nil
-}
-
-func (field jsonRawField) hasNonNullValue() bool {
-	if !field.Present {
-		return false
-	}
-	return !bytes.Equal(bytes.TrimSpace(field.Value), []byte("null"))
-}
-
-func (field jsonRawField) stringValue(name string) (string, error) {
-	if !field.hasNonNullValue() {
-		return "", nil
-	}
-
-	var value string
-	if err := json.Unmarshal(field.Value, &value); err != nil {
-		return "", &Error{Code: ErrInvalidArg, Message: name + " must be a string"}
-	}
-	return value, nil
-}
-
 type jsonrpcRouteEnvelope struct {
-	JSONRPC jsonRawField `json:"jsonrpc"`
-	ID      jsonRawField `json:"id"`
-	Method  jsonRawField `json:"method"`
-	Params  jsonRawField `json:"params"`
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params"`
 }
 
 type jsonrpcToolsCallParams struct {
@@ -238,19 +209,31 @@ type jsonrpcToolsCallParams struct {
 
 var errMissingParamsName = &Error{Code: ErrInvalidArg, Message: "tools/call params.name is required"}
 
-func routePreviewToolParams(params jsonRawField) (string, json.RawMessage, error) {
-	if !params.hasNonNullValue() {
+func routePreviewToolParams(params json.RawMessage) (string, json.RawMessage, error) {
+	if !hasNonNullJSONValue(params) {
 		return "", nil, errMissingParamsName
 	}
 
 	var decoded jsonrpcToolsCallParams
-	if err := json.Unmarshal(params.Value, &decoded); err != nil {
+	if err := json.Unmarshal(params, &decoded); err != nil {
 		return "", nil, &Error{Code: ErrInvalidArg, Message: "tools/call params must be an object"}
 	}
 	if decoded.Name == nil || *decoded.Name == "" {
 		return "", nil, errMissingParamsName
 	}
 	return *decoded.Name, decoded.Arguments, nil
+}
+
+func hasNonNullJSONValue(raw json.RawMessage) bool {
+	return len(raw) > 0 && !bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
+}
+
+func isJSONSyntaxError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return true
+	}
+	return errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 func routePreviewParamStatus(err error) JSONRPCRouteStatus {
