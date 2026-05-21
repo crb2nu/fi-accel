@@ -6,6 +6,16 @@ These are **additions to the implementation plan** ([30-implementation-plan.md](
 
 Priority key: **P1** = unblocks a near-term ICC slice (M51-M52). **P2** = clear win, no immediate blocker. **P3** = nice-to-have, file for record.
 
+## 2026-05-20 Release Gate Status
+
+FA-PLAN-04 now tracks the ICC backlog as a release-quality surface rather than
+as separate API discovery. The current gate requires direct fallback imports,
+native/fallback parity coverage for implemented utilities, and benchmark ledger
+entries for hashing, ranking, NDJSON reader, pattern matching, and mail parsing
+before release notes claim speedups. Gemma exactness remains the documented
+opt-in exception because it depends on a local Hugging Face `tokenizer.json`
+asset.
+
 ---
 
 ## FA-ICC-01 — Batch SHA-256 hashing (P2)

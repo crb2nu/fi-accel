@@ -104,6 +104,7 @@ test:py:
     - pip install pytest
     - python -c "from fi_accel import count_tokens; print(count_tokens('hello world', 'gpt-4'))"
     - python -c "from fi_accel import cosine_similarity; print(cosine_similarity([1,0], [1,0]))"
+    - python -m pytest -q python/tests
   allow_failure: false
 
 test:wasm:
