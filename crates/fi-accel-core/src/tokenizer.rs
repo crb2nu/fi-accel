@@ -449,6 +449,72 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "gemma-tokenizer")]
+    fn test_gemma_fixture_counts_match_hf_tokenizer_asset() {
+        let Some(tokenizer_path) = std::env::var_os(GEMMA_TOKENIZER_ENV) else {
+            eprintln!("skipping Gemma exactness fixture; {GEMMA_TOKENIZER_ENV} is not set");
+            return;
+        };
+
+        let tokenizer_path = PathBuf::from(tokenizer_path);
+        assert!(
+            tokenizer_path.is_file(),
+            "{GEMMA_TOKENIZER_ENV} must point at a local Hugging Face tokenizer.json"
+        );
+
+        let reference = HfTokenizer::from_file(&tokenizer_path)
+            .unwrap_or_else(|err| panic!("failed to load reference Gemma tokenizer: {err}"));
+        let tokenizer = Tokenizer::new("gemma")
+            .unwrap_or_else(|err| panic!("failed to create fi-accel Gemma tokenizer: {err}"));
+        let fixture = gemma_exactness_fixture();
+        assert_eq!(fixture.len(), 100);
+
+        for text in fixture {
+            let expected = reference
+                .encode(text.as_str(), false)
+                .unwrap_or_else(|err| panic!("reference tokenizer failed for {text:?}: {err}"))
+                .len();
+            let actual = tokenizer.count(&text);
+            assert_eq!(actual, expected, "token count mismatch for {text:?}");
+            assert_eq!(tokenizer.encode(&text).len(), expected);
+        }
+    }
+
+    #[cfg(feature = "gemma-tokenizer")]
+    fn gemma_exactness_fixture() -> Vec<String> {
+        let seeds = [
+            "Hello, Gemma.",
+            "Summarize the deployment plan in three bullets.",
+            "tools/call mcp.gateway.route_preview payload",
+            "fn main() { println!(\"hi\"); }",
+            "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"id\":\"abc-123\"}",
+            "Path: /Users/cblevins/workspace/libs/fi-accel/src/lib.rs",
+            "The quick brown fox jumps over thirteen lazy logs.",
+            "Rank documents by BM25, vector score, and recency.",
+            "Email subject: Re: quarterly invoice attachment review",
+            "Chunk markdown headings without losing source offsets.",
+            "Detect UTF-8, Windows-1252, and ISO-8859-1 inputs.",
+            "A short sentence.",
+            "Whitespace     should    remain     tokenizer-visible.",
+            "Line one\nLine two\nLine three",
+            "snake_case camelCase PascalCase kebab-case",
+            "2026-05-20T19:30:00-04:00",
+            "SELECT id, name FROM tools WHERE enabled = true;",
+            "Patch @@ -10,7 +10,8 @@ with context lines.",
+            "alpha beta gamma delta epsilon zeta eta theta",
+            "When fallback mode is active, report capabilities honestly.",
+        ];
+
+        let mut fixture = Vec::with_capacity(100);
+        for round in 0..5 {
+            for (index, seed) in seeds.iter().enumerate() {
+                fixture.push(format!("[case {round:02}-{index:02}] {seed}"));
+            }
+        }
+        fixture
+    }
+
+    #[test]
     fn test_existing_gpt_and_claude_model_mappings() {
         let expected = [
             ("gpt-4", "cl100k_base"),

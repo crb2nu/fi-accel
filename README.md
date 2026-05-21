@@ -167,6 +167,11 @@ and a local Hugging Face `tokenizer.json` asset configured with
 `$XDG_CACHE_HOME/fi-accel/gemma/tokenizer.json` (falling back to
 `~/.cache/fi-accel/gemma/tokenizer.json`). fi-accel does not download model
 assets at runtime and no longer approximates Gemma with a GPT tokenizer.
+The Rust test suite includes an opt-in exactness fixture for Gemma: run
+`FI_ACCEL_GEMMA_TOKENIZER_PATH=/path/to/tokenizer.json cargo test -p fi-accel-core --features gemma-tokenizer gemma_fixture`
+to compare fi-accel token counts against the Hugging Face tokenizer on a
+100-string fixture. When the environment variable is unset, the fixture test
+passes without loading a model asset.
 
 ### JavaScript/TypeScript
 
