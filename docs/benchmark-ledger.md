@@ -43,3 +43,28 @@ go test ./... -run '^$' -bench 'BenchmarkParseJSONRPCRoutePreviewGatewayToolsCal
 Downstream `fi-mcp-gateway` service adoption did not clear the gate on
 2026-05-20: the helper path reached approximate wall-time parity but used
 slightly more bytes and allocations than the service's current route path.
+
+## Code-Memory Ingestion Proof
+
+Run from `/Users/cblevins/workspace/libs/py-codebase-memory` after installing
+the local `fi-accel` Python binding:
+
+```bash
+uv pip install -e /Users/cblevins/workspace/libs/fi-accel/.worktrees/codex-code-memory-ingestion-proof/python
+uv run --extra dev python <inline benchmark script>
+```
+
+Input shape: all 16 Python files under `src/codebase_memory`, 114256 bytes
+total, parsed repeatedly with `PythonIndexer`.
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion | local tree-sitter + heuristic token estimate | 86.42 ms median, 1462.8 KiB median peak Python allocation, 141 chunks | 2026-05-21 | Baseline downstream path. |
+| Python code-memory ingestion | local tree-sitter + `fi_accel.count_tokens` | 4152.80 ms median, 1462.3 KiB median peak Python allocation, 141 chunks | 2026-05-21 | Does not clear adoption gate; per-chunk BPE counting dominates wall time. |
+| Python code-memory ingestion | `fi_accel.chunk_code` + `fi_accel.count_tokens` | 4199.62 ms median, 609.7 KiB median peak Python allocation, 143 chunks | 2026-05-21 | Reduces peak Python allocation but fails the wall-time gate by a large margin. |
+
+Decision: keep the `py-codebase-memory` integration opt-in for both Python
+chunk extraction and token counting. Do not promote `fi-accel` as the default
+code-memory ingestion path until the tokenizer/chunker call path is specialized
+for repeated small/medium source chunks or benchmarked against a consumer where
+lower Python allocation matters more than wall time.
