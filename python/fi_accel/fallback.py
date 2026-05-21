@@ -275,7 +275,12 @@ class NDJSONReader:
     def append(self, data: bytes) -> list[Any]:
         payload = self._buffer + data
         lines = payload.split(b"\n")
-        self._buffer = lines.pop() if payload and not payload.endswith(b"\n") else b""
+        if payload.endswith(b"\n"):
+            self._buffer = b""
+            if lines and lines[-1] == b"":
+                lines.pop()
+        else:
+            self._buffer = lines.pop() if payload else b""
         emitted: list[Any] = []
         for raw in lines:
             self._line += 1
@@ -497,6 +502,16 @@ def summarize_accel_observations(
 
 def sha256_batch(items: list[bytes]) -> list[str]:
     return [hashlib.sha256(item).hexdigest() for item in items]
+
+
+def sha256_stream(reader: BinaryIO, chunk_size: int = 65536) -> str:
+    hasher = hashlib.sha256()
+    while True:
+        chunk = reader.read(chunk_size)
+        if not chunk:
+            break
+        hasher.update(chunk)
+    return hasher.hexdigest()
 
 
 def verify_hash_chain(
@@ -830,6 +845,7 @@ __all__ = [
     "summarize_eventlog",
     "summarize_accel_observations",
     "sha256_batch",
+    "sha256_stream",
     "verify_hash_chain",
     "html_to_text",
     "detect_encoding",

@@ -4,6 +4,10 @@
 
 High-performance Rust acceleration library for agent/MCP workflows.
 
+Performance claims should be treated as release-backed only when they are
+recorded in the [benchmark ledger](docs/benchmark-ledger.md) with command,
+host, input shape, and date.
+
 ## Features
 
 - **Token Counting**: 10-50x faster than Python tiktoken

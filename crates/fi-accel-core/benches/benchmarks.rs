@@ -3,7 +3,8 @@
 //! Run with: cargo bench -p fi-accel-core
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use fi_accel_core::{diff, embedding, json, log, transport};
+use fi_accel_core::{diff, embedding, hashing, json, log, mail, pattern, ranking, transport};
+use std::time::Duration;
 
 #[cfg(feature = "chunker")]
 use fi_accel_core::chunker;
@@ -235,6 +236,80 @@ fn bench_json(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_icc_release_gate(c: &mut Criterion) {
+    let mut group = c.benchmark_group("icc_release_gate");
+    group.sample_size(10);
+    group.measurement_time(Duration::from_secs(2));
+
+    let hash_items: Vec<Vec<u8>> = (0..100_000)
+        .map(|i| {
+            let mut item = vec![0u8; 256];
+            item[..8].copy_from_slice(&(i as u64).to_le_bytes());
+            item
+        })
+        .collect();
+    group.bench_function("sha256_batch_100k_256b", |bench| {
+        bench.iter(|| hashing::sha256_batch(black_box(&hash_items)))
+    });
+
+    let lex_ranks: Vec<usize> = (0..1_000).rev().collect();
+    let cosine_scores: Vec<f32> = (0..1_000).map(|i| (i % 100) as f32 / 100.0).collect();
+    group.bench_function("hybrid_rank_1k", |bench| {
+        bench.iter(|| {
+            ranking::hybrid_rank(
+                black_box(&lex_ranks),
+                black_box(&cosine_scores),
+                black_box(0.5),
+                black_box(ranking::HybridRankMethod::WeightedSum),
+            )
+        })
+    });
+
+    let ranked_lists: Vec<Vec<usize>> = vec![
+        (0..1_000).collect(),
+        (250..1_250).collect(),
+        (500..1_500).collect(),
+    ];
+    group.bench_function("rrf_fuse_3x1k", |bench| {
+        bench.iter(|| ranking::rrf_fuse(black_box(&ranked_lists), black_box(60)))
+    });
+
+    let ndjson_1k = (0..1_000)
+        .map(|i| format!(r#"{{"id":{},"event_type":"artifact","ok":true}}"#, i))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    group.bench_function("ndjson_reader_append_1k", |bench| {
+        bench.iter(|| {
+            let mut reader = json::NDJSONReader::new(&[]).unwrap();
+            reader.append(black_box(ndjson_1k.as_bytes()))
+        })
+    });
+
+    let patterns: Vec<String> = (0..128).map(|i| format!("vendor-{}", i)).collect();
+    let text = (0..1_000)
+        .map(|i| format!("artifact {} references vendor-{} and FA-{}.", i, i % 128, i))
+        .collect::<Vec<_>>()
+        .join("\n");
+    group.bench_function("literal_pattern_128_over_1k_lines", |bench| {
+        bench.iter(|| pattern::find_literal_matches(black_box(&patterns), black_box(&text)))
+    });
+
+    let regexes =
+        pattern::compile_regex_patterns(&[r"FA-\d+".to_string(), r"vendor-\d+".to_string()])
+            .unwrap();
+    group.bench_function("regex_pattern_2_over_1k_lines", |bench| {
+        bench.iter(|| pattern::find_regex_matches(black_box(&regexes), black_box(&text)))
+    });
+
+    let eml = b"Subject: Release gate\nFrom: codex@example.test\nContent-Type: multipart/mixed; boundary=\"BOUNDARY\"\n\n--BOUNDARY\nContent-Type: text/plain; charset=utf-8\n\nHello ICC\n--BOUNDARY\nContent-Type: text/html; charset=utf-8\n\n<p>Hello <b>ICC</b></p>\n--BOUNDARY\nContent-Type: text/plain; name=\"notes.txt\"\nContent-Disposition: attachment; filename=\"notes.txt\"\n\nattached note\n--BOUNDARY--\n";
+    group.bench_function("parse_eml_multipart_attachment", |bench| {
+        bench.iter(|| mail::parse_eml(black_box(eml)))
+    });
+
+    group.finish();
+}
+
 #[cfg(feature = "chunker")]
 fn bench_chunker(c: &mut Criterion) {
     let mut group = c.benchmark_group("chunker");
@@ -326,7 +401,14 @@ if __name__ == "__main__":
     group.finish();
 }
 
-criterion_group!(benches, bench_embedding, bench_diff, bench_log, bench_json,);
+criterion_group!(
+    benches,
+    bench_embedding,
+    bench_diff,
+    bench_log,
+    bench_json,
+    bench_icc_release_gate,
+);
 
 #[cfg(feature = "chunker")]
 criterion_group!(chunker_benches, bench_chunker,);
