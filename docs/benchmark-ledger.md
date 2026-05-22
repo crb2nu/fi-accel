@@ -69,6 +69,38 @@ code-memory ingestion path until the tokenizer/chunker call path is specialized
 for repeated small/medium source chunks or benchmarked against a consumer where
 lower Python allocation matters more than wall time.
 
+### Cached Tokenizer Follow-Up
+
+Narrow fix chosen: repeated-small-file tokenizer fast path. `py-codebase-memory`
+already calls `fi_accel.count_tokens` per local chunk when exact token mode is
+enabled, so caching tiktoken encodings behind that existing API attacks the May
+21 blocker without a downstream API change, batch integration work, or changing
+the chunk identity contract.
+
+Run from this repo against the current `py-codebase-memory` checkout:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python <inline May 21 three-mode ingestion benchmark>  # repeats=7
+```
+
+Input shape: all 16 Python files under `py-codebase-memory/src/codebase_memory`,
+114240 bytes total, parsed repeatedly with `PythonIndexer`.
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion | local tree-sitter + heuristic token estimate | 83.91 ms median, 1165.2 KiB median peak Python allocation, 141 chunks | 2026-05-22 | Same local chunking/token heuristic baseline shape as the May 21 proof. |
+| Python code-memory ingestion | local tree-sitter + cached `fi_accel.count_tokens` | 103.38 ms median, 1165.1 KiB median peak Python allocation, 141 chunks | 2026-05-22 | Replaces the previous 4152.80 ms exact-count path; the wall-time blocker is reduced to about 19.5 ms over heuristic counting. |
+| Python code-memory ingestion | `fi_accel.chunk_code` + cached token counts | 31.15 ms median, 158.3 KiB median peak Python allocation, 143 chunks | 2026-05-22 | Replaces the previous 4199.62 ms chunker path and is now faster than local, but chunk cardinality still differs from the downstream contract. |
+
+Decision: revisit default adoption for exact token counting with local
+`PythonIndexer` chunking. The wall-time gap closed enough that the remaining
+tradeoff is exact-count value versus roughly 20 ms median overhead on this input
+set. Keep full `fi_accel.chunk_code` default adoption blocked on chunk
+identity/cardinality parity, despite the faster wall time and lower Python
+allocation.
+
 ### Full Helper Ingestion-Record Prototype
 
 Run from this repo against the current `py-codebase-memory` checkout:

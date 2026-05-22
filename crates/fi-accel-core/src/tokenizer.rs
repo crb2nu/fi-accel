@@ -4,16 +4,13 @@
 //! and a local Hugging Face `tokenizer.json` asset is configured.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use thiserror::Error;
 use tiktoken_rs::{cl100k_base, o200k_base, p50k_base, p50k_edit, r50k_base, CoreBPE};
 
 #[cfg(feature = "gemma-tokenizer")]
 use {
-    std::{
-        path::{Path, PathBuf},
-        sync::{Arc, Mutex},
-    },
+    std::path::{Path, PathBuf},
     tokenizers::Tokenizer as HfTokenizer,
 };
 
@@ -32,6 +29,8 @@ pub enum TokenizerError {
 
 /// Model to encoding mapping for tiktoken-backed models.
 static MODEL_ENCODINGS: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+static TIKTOKEN_ENCODING_CACHE: OnceLock<Mutex<HashMap<&'static str, Arc<CoreBPE>>>> =
+    OnceLock::new();
 
 fn get_model_encodings() -> &'static HashMap<&'static str, &'static str> {
     MODEL_ENCODINGS.get_or_init(|| {
@@ -62,7 +61,11 @@ fn is_gemma_model(model: &str) -> bool {
     matches!(model, "gemma" | "gemma-26b" | "gemma-26b-a4b")
 }
 
-fn get_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
+fn tiktoken_encoding_cache() -> &'static Mutex<HashMap<&'static str, Arc<CoreBPE>>> {
+    TIKTOKEN_ENCODING_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn build_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
     match encoding_name {
         "cl100k_base" => cl100k_base().map_err(|e| TokenizerError::InitError(e.to_string())),
         "o200k_base" => o200k_base().map_err(|e| TokenizerError::InitError(e.to_string())),
@@ -71,6 +74,21 @@ fn get_encoding(encoding_name: &str) -> Result<CoreBPE, TokenizerError> {
         "r50k_base" => r50k_base().map_err(|e| TokenizerError::InitError(e.to_string())),
         _ => Err(TokenizerError::UnknownModel(encoding_name.to_string())),
     }
+}
+
+fn get_encoding(encoding_name: &'static str) -> Result<Arc<CoreBPE>, TokenizerError> {
+    let cache = tiktoken_encoding_cache();
+    let mut cache = cache
+        .lock()
+        .map_err(|_| TokenizerError::InitError("Tiktoken encoding cache lock poisoned".into()))?;
+
+    if let Some(encoding) = cache.get(encoding_name) {
+        return Ok(Arc::clone(encoding));
+    }
+
+    let encoding = Arc::new(build_encoding(encoding_name)?);
+    cache.insert(encoding_name, Arc::clone(&encoding));
+    Ok(encoding)
 }
 
 fn get_encoding_name_for_model(model: &str) -> &'static str {
@@ -165,7 +183,7 @@ fn load_gemma_tokenizer(path: &Path) -> Result<Arc<HfTokenizer>, TokenizerError>
 }
 
 enum TokenizerBackend {
-    Tiktoken(CoreBPE),
+    Tiktoken(Arc<CoreBPE>),
     #[cfg(feature = "gemma-tokenizer")]
     Gemma(Arc<HfTokenizer>),
 }
