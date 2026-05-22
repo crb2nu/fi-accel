@@ -68,3 +68,31 @@ chunk extraction and token counting. Do not promote `fi-accel` as the default
 code-memory ingestion path until the tokenizer/chunker call path is specialized
 for repeated small/medium source chunks or benchmarked against a consumer where
 lower Python allocation matters more than wall time.
+
+### Full Helper Ingestion-Record Prototype
+
+Run from this repo against the current `py-codebase-memory` checkout:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/bench_code_memory_ingestion.py --repeats 7
+```
+
+Input shape: all 16 Python files under `py-codebase-memory/src/codebase_memory`,
+114240 bytes total. Baseline uses the local `PythonIndexer`, `read_text`,
+`hashlib.sha256`, and Python ranking glue. Prototype uses `fi_accel.detect_encoding`,
+`fi_accel.chunk_code`, `fi_accel.sha256_batch`, and `fi_accel.hybrid_rank` to build
+rank-ready ingestion records.
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion-record build | local tree-sitter + stdlib hash/ranking glue | 90.48 ms median, 1516.4 KiB median peak Python allocation, 141 chunks | 2026-05-22 | Baseline record preparation path for the same source tree. |
+| Python code-memory ingestion-record build | `fi-accel` decode/chunk/hash/rank helpers | 20.52 ms median, 913.5 KiB median peak Python allocation, 143 chunks | 2026-05-22 | Clears the prototype wall-time/allocation gate for record construction, but chunk cardinality and ranked IDs differ from local. |
+
+Decision: promote this as a prototype recipe only. The full helper path is about
+4.4x faster for ingestion-record construction and uses about 40% less peak
+Python allocation, but it should not become the default `py-codebase-memory`
+path until chunk identity/cardinality parity is either fixed or accepted by the
+downstream index contract. The earlier per-chunk `fi_accel.count_tokens` path
+remains blocked for default adoption.
