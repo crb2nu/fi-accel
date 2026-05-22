@@ -6,6 +6,7 @@ type CapabilitySet struct {
 	SIMDJSON        bool `json:"simd_json"`
 	Transport       bool `json:"transport"`
 	Eventlog        bool `json:"eventlog"`
+	MarkdownHelpers bool `json:"markdown_helpers"`
 	ChunkerCode     bool `json:"chunker_code"`
 	ChunkerMarkdown bool `json:"chunker_markdown"`
 	ChunkerText     bool `json:"chunker_text"`
