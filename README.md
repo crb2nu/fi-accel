@@ -59,6 +59,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | eventlog | full | full | full | full |
 | acceleration scout | full | full | unsupported | unsupported |
 | transport | full | full | full | full |
+| markdown text helpers | unsupported | unsupported | full | unsupported |
 | TOML | full | full | unsupported | full |
 | TOON | full | full | unsupported | full |
 | chunker (code) | full | full | full | unsupported |
@@ -250,8 +251,16 @@ import (
 )
 
 func main() {
+	fmt.Println(fiaccel.Version())
+
 	caps := fiaccel.RuntimeCapabilities()
-	fmt.Println(caps.Transport)
+	fmt.Println(caps.Transport, caps.MarkdownHelpers)
+
+	text := fiaccel.MarkdownToText("# Title\n\nRead the [docs](https://example.test).")
+	fmt.Println(text)
+
+	stats := fiaccel.AnalyzeMarkdown("A short note for review.", 0)
+	fmt.Println(stats.WordCount, stats.ReadingTimeMinutes)
 
 	messages, _ := fiaccel.ParseJSONRPCLines([]byte("{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}\n"))
 	fmt.Println(len(messages))

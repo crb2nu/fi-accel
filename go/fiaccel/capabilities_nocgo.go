@@ -8,6 +8,7 @@ func runtimeCapabilities() CapabilitySet {
 		SIMDJSON:        false,
 		Transport:       false,
 		Eventlog:        false,
+		MarkdownHelpers: true,
 		ChunkerCode:     false,
 		ChunkerMarkdown: false,
 		ChunkerText:     false,
