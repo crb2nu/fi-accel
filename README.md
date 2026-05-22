@@ -259,6 +259,9 @@ func main() {
 	preview, _ := fiaccel.ParseJSONRPCRoutePreview([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`))
 	fmt.Println(preview.Method, preview.HasID, *preview.ParamsName, string(preview.ParamsArguments))
 
+	route, _ := fiaccel.ExtractJSONRPCPrefixRoute([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`))
+	fmt.Println(route.Method, route.ToolName)
+
 	events, _ := fiaccel.ParseSSEEvents([]byte("event: message\ndata: hello\n\n"))
 	fmt.Println(events[0].Data)
 
@@ -284,6 +287,7 @@ func main() {
 | JSON-RPC framing (100 msgs) | 20ms | 2ms | 10x |
 | JSON-RPC route preview (small tools/call) | gateway route baseline: 2.22-2.44us | Go helper: 1.24-1.33us | ~1.8x |
 | JSON-RPC route preview (gateway-shaped tools/call) | pending service rerun | Go helper: 5.12-5.44us | fixture baseline |
+| JSON-RPC prefix route extraction (gateway-shaped tools/call) | gateway route gate: 2.22-2.44us, 1608 B/op | Go helper: 235-239ns, 64 B/op | clears gate |
 | SSE parse (100 events) | 10ms | 1ms | 10x |
 | TOML parse (100KB) | 10ms | 1ms | 10x |
 | TOON parse (10KB) | 5ms | 0.5ms | 10x |
