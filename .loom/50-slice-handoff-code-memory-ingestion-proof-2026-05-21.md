@@ -31,6 +31,10 @@
 
 - Remaining acceptance criteria:
   - The adoption proof did not justify making `fi-accel` the default ingestion path.
+  - A 2026-05-22 reconciliation pass found a faster full-helper ingestion-record
+    prototype, but it is still blocked on chunk identity/cardinality parity before
+    default downstream adoption. See
+    `.loom/51-slice-handoff-fa-plan-06-ingestion-reconcile-2026-05-22.md`.
   - A future `fi-accel` slice needs to reduce repeated tokenizer/chunker overhead before this can become a promoted code-memory acceleration claim.
 - Known issues:
   - `fi_accel.count_tokens` dominates wall time when called for each downstream chunk.
