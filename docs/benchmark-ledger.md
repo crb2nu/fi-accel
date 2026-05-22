@@ -33,16 +33,20 @@ cargo bench -p fi-accel-core --bench benchmarks icc_release_gate
 Run from `go/fiaccel`:
 
 ```bash
-go test ./... -run '^$' -bench 'BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall' -benchmem -count=5
+go test ./... -run '^$' -bench 'Benchmark(ParseJSONRPCRoutePreviewGatewayToolsCall|ExtractJSONRPCPrefixRouteGatewayToolsCall)$' -benchmem -count=5
 ```
 
 | Surface | Benchmark | Input shape | Latest result | Date | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Go transport | `BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall` | production-shaped MCP `tools/call` route payload | 5123-5436 ns/op, 1744 B/op, 22 allocs/op | 2026-05-20 | Standalone helper result from `docs/service-acceleration-kill-test-2026-05-20.md`. |
+| Go transport | `BenchmarkExtractJSONRPCPrefixRouteGatewayToolsCall` | same payload, gateway prefix route fields only | 234.9-238.6 ns/op, 64 B/op, 2 allocs/op | 2026-05-22 | Extracts method and `params.name` only; does not copy id or raw arguments. |
 
 Downstream `fi-mcp-gateway` service adoption did not clear the gate on
 2026-05-20: the helper path reached approximate wall-time parity but used
 slightly more bytes and allocations than the service's current route path.
+The narrower prefix-route extractor clears the original standalone gate for
+prefix-only routing, but downstream service adoption still needs a service-local
+benchmark because argument-aware routing requires `params.arguments`.
 
 ## Code-Memory Ingestion Proof
 

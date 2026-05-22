@@ -6,6 +6,7 @@ import (
 )
 
 var routePreviewSink JSONRPCRoutePreview
+var prefixRouteSink JSONRPCPrefixRoute
 
 var routePreviewSmallToolsCallPayload = []byte(`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"lookup","arguments":{"q":"hello"}}}`)
 
@@ -121,6 +122,73 @@ func TestParseJSONRPCRoutePreviewMissingToolsName(t *testing.T) {
 	}
 }
 
+func TestExtractJSONRPCPrefixRouteGatewayToolsCall(t *testing.T) {
+	route, err := ExtractJSONRPCPrefixRoute(routePreviewGatewayToolsCallPayload)
+	if err != nil {
+		t.Fatalf("ExtractJSONRPCPrefixRoute: %v", err)
+	}
+	if !route.Valid || route.Status != JSONRPCRouteStatusOK {
+		t.Fatalf("unexpected status: %+v", route)
+	}
+	if route.Method != "tools/call" {
+		t.Fatalf("unexpected method: %+v", route)
+	}
+	if route.ToolName != "agent_context__agent_context_recall_enhanced" {
+		t.Fatalf("unexpected tool name: %+v", route)
+	}
+	if route.InputBytes != len(routePreviewGatewayToolsCallPayload) {
+		t.Fatalf("expected input bytes %d, got %d", len(routePreviewGatewayToolsCallPayload), route.InputBytes)
+	}
+}
+
+func TestExtractJSONRPCPrefixRouteParamsBeforeMethod(t *testing.T) {
+	payload := []byte(`{"params":{"name":"lookup","arguments":{"q":"hello"}},"method":"tools/call"}`)
+
+	route, err := ExtractJSONRPCPrefixRoute(payload)
+	if err != nil {
+		t.Fatalf("ExtractJSONRPCPrefixRoute: %v", err)
+	}
+	if route.ToolName != "lookup" {
+		t.Fatalf("unexpected tool name: %+v", route)
+	}
+}
+
+func TestExtractJSONRPCPrefixRouteNotificationMethod(t *testing.T) {
+	route, err := ExtractJSONRPCPrefixRoute([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized","params":{"ignored":true}}`))
+	if err != nil {
+		t.Fatalf("ExtractJSONRPCPrefixRoute: %v", err)
+	}
+	if route.Method != "notifications/initialized" || route.ToolName != "" {
+		t.Fatalf("unexpected prefix route: %+v", route)
+	}
+}
+
+func TestExtractJSONRPCPrefixRouteInvalidInputs(t *testing.T) {
+	route, err := ExtractJSONRPCPrefixRoute([]byte(`{"jsonrpc":"2.0","method":7}`))
+	if err == nil {
+		t.Fatal("expected invalid method type error")
+	}
+	if route.Valid || route.Status != JSONRPCRouteStatusInvalidJSONRPC {
+		t.Fatalf("unexpected invalid method preview: %+v", route)
+	}
+
+	route, err = ExtractJSONRPCPrefixRoute([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"arguments":{}}}`))
+	if err == nil {
+		t.Fatal("expected missing params.name error")
+	}
+	if route.Valid || route.Status != JSONRPCRouteStatusMissingParamsName {
+		t.Fatalf("unexpected missing params.name route: %+v", route)
+	}
+
+	route, err = ExtractJSONRPCPrefixRoute([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":[]}`))
+	if err == nil {
+		t.Fatal("expected invalid params error")
+	}
+	if route.Valid || route.Status != JSONRPCRouteStatusInvalidParams {
+		t.Fatalf("unexpected invalid params route: %+v", route)
+	}
+}
+
 func BenchmarkParseJSONRPCRoutePreviewToolsCall(b *testing.B) {
 	payload := routePreviewSmallToolsCallPayload
 	b.SetBytes(int64(len(payload)))
@@ -131,6 +199,19 @@ func BenchmarkParseJSONRPCRoutePreviewToolsCall(b *testing.B) {
 			b.Fatal(err)
 		}
 		routePreviewSink = preview
+	}
+}
+
+func BenchmarkExtractJSONRPCPrefixRouteGatewayToolsCall(b *testing.B) {
+	payload := routePreviewGatewayToolsCallPayload
+	b.SetBytes(int64(len(payload)))
+
+	for i := 0; i < b.N; i++ {
+		route, err := ExtractJSONRPCPrefixRoute(payload)
+		if err != nil {
+			b.Fatal(err)
+		}
+		prefixRouteSink = route
 	}
 }
 

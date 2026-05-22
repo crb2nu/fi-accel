@@ -170,3 +170,30 @@ Results on Apple M4:
 | `BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall` | 5123-5436 | 1744 | 22 |
 
 The service adoption gate is unchanged: rerun `fi-mcp-gateway` route benchmarks with a matching production-shaped payload and promote integration only if behavior is preserved and the helper clears the documented wall-time or allocation threshold.
+
+## Gateway Prefix Route Extractor
+
+After the production-shaped adoption probe failed, the next useful specialized helper was a prefix-routing extractor for the gateway path that only needs the top-level method and `tools/call` `params.name`. The new `ExtractJSONRPCPrefixRoute` helper deliberately does not decode or copy JSON-RPC ids, raw `params.arguments`, result, or error fields. It is intended for callers that already have whatever full-message JSON-RPC validation they require and need a cheap route prefix.
+
+Validation covers:
+
+- gateway-shaped `tools/call` extraction on the same production-shaped fixture
+- `params` appearing before `method`
+- non-`tools/call` notification methods
+- invalid method type
+- missing or invalid `tools/call` `params.name`
+
+Benchmark command from `go/fiaccel`:
+
+```bash
+go test ./... -run '^$' -bench 'Benchmark(ParseJSONRPCRoutePreviewGatewayToolsCall|ExtractJSONRPCPrefixRouteGatewayToolsCall)$' -benchmem -count=5
+```
+
+Results on Apple M4:
+
+| Benchmark | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| `BenchmarkExtractJSONRPCPrefixRouteGatewayToolsCall` | 234.9-238.6 | 64 | 2 |
+| `BenchmarkParseJSONRPCRoutePreviewGatewayToolsCall` | 4985-5109 | 1744 | 22 |
+
+Decision: land the prefix extractor for prefix-only gateway routing experiments. It clears the original service-adoption wall-time gate compared with the `fi-mcp-gateway` route baseline of 2221-2444 ns/op and materially reduces allocation pressure versus both the service baseline of 1608 B/op and the full route-preview helper. It should not replace argument-aware routing paths by itself because it intentionally does not expose `params.arguments`.
