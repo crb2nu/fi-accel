@@ -42,12 +42,19 @@ pub fn chunk_code(
         None,
     );
 
-    // If AST walking produced no chunks (e.g., file is all imports/comments),
-    // fall back to treating it as a single block
+    // py-codebase-memory's PythonIndexer only emits semantic class/function
+    // chunks. Preserve that contract for Python so accelerated chunk IDs and
+    // cardinality line up with existing downstream indexes.
+    if chunks.is_empty() && matches!(lang, Language::Python) {
+        return Ok(chunks);
+    }
+
+    // If AST walking produced no chunks for other languages, fall back to
+    // treating the file as a single module block.
     if chunks.is_empty() && !content.trim().is_empty() {
         let token_count = count_or_estimate_tokens(content, config.model.as_deref());
         chunks.push(Chunk {
-            id: generate_chunk_id(config.file_path.as_deref(), 1, content),
+            id: generate_chunk_id(config.file_path.as_deref(), 0, content),
             content: content.to_string(),
             kind: ChunkKind::Module,
             chunk_type: ChunkKind::Module.as_str().to_string(),
@@ -151,7 +158,7 @@ fn extract_function(
     let token_count = count_or_estimate_tokens(code, config.model.as_deref());
 
     Chunk {
-        id: generate_chunk_id(config.file_path.as_deref(), start_line, code),
+        id: generate_chunk_id(config.file_path.as_deref(), node.start_position().row, code),
         content: code.to_string(),
         kind,
         chunk_type,
@@ -198,7 +205,7 @@ fn extract_class(node: Node, content: &str, lang: &Language, config: &ChunkConfi
     let token_count = count_or_estimate_tokens(code, config.model.as_deref());
 
     Chunk {
-        id: generate_chunk_id(config.file_path.as_deref(), start_line, code),
+        id: generate_chunk_id(config.file_path.as_deref(), node.start_position().row, code),
         content: code.to_string(),
         kind: ChunkKind::Class,
         chunk_type: ChunkKind::Class.as_str().to_string(),
@@ -462,9 +469,7 @@ def hello(name):
         let content = "import os\nimport sys\n";
         let config = ChunkConfig::default();
         let chunks = chunk_code(content, &Language::Python, &config).unwrap();
-        // Should fall back to a module-level chunk
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].kind, ChunkKind::Module);
+        assert!(chunks.is_empty());
     }
 
     #[test]
