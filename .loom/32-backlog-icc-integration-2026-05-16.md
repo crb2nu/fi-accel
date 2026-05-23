@@ -14,7 +14,9 @@ native/fallback parity coverage for implemented utilities, and benchmark ledger
 entries for hashing, ranking, NDJSON reader, pattern matching, and mail parsing
 before release notes claim speedups. Gemma exactness remains the documented
 opt-in exception because it depends on a local Hugging Face `tokenizer.json`
-asset.
+asset. The May 23 follow-up adds a service-shaped hash-chain verifier fixture
+covering valid, tampered-payload, and broken-link cases across native and
+fallback implementations.
 
 ---
 
@@ -193,6 +195,12 @@ asset.
 - A tampered entry returns `{valid: False, first_invalid_index: i, expected: <hex>, actual: <hex>}`.
 - Empty chain returns `{valid: True, ...}`.
 - Genesis entry's `prev_hash` is the empty string (or configurable seed).
+
+**Status (2026-05-23):** The release-gate suite now includes an ICC-shaped
+three-event chain with tenant, project, actor, operation, resource, payload,
+and metadata fields. Native and fallback implementations accept the valid
+fixture and return matching diagnostics for payload tampering and broken
+`prev_hash` links.
 
 **Estimate:** S (composes on FA-ICC-01 internally; minimal extra API surface).
 

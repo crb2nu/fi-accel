@@ -41,6 +41,10 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
   - Promote the existing untracked Go `Version()` and pure-Go Markdown text/code-fence helpers as supported additive surface.
   - Boundary: keep Go parity focused on service-friendly helpers that work with `CGO_ENABLED=0`; do not expand Go to TOML, TOON, ranking, or broad Rust-core parity until a named consumer and kill-test justify it.
   - Capability/docs/tests now identify `markdown_helpers` separately from FFI-backed `chunker_markdown`.
+- 2026-05-23 FA-PLAN-04 hash-chain fixture:
+  - Added an ICC-shaped audit-chain fixture to the Python release-gate tests.
+  - Native and fallback `verify_hash_chain` now agree on valid, tampered-payload, and broken-link diagnostics for that fixture.
+  - The fallback result shape now includes `expected_prev_hash` and `actual_prev_hash` on entry-hash mismatches, matching the native diagnostic payload.
 
 ## Plan
 
@@ -92,7 +96,7 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
 
 ## Active Backlog
 
-- P1: FA-PLAN-04 ICC Utility Release Gate.
+- Done: FA-PLAN-04 ICC Utility Release Gate; hash-chain service fixture added for the remaining ICC verifier proof.
 - P1: FA-PLAN-05 Gemma Fixture Harness.
 - Done/Gated: FA-PLAN-06 Code-Memory Ingestion Proof.
 - Done: FA-PLAN-06B Repeated Token Counting Fast Path.
