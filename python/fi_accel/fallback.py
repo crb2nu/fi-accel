@@ -554,6 +554,8 @@ def verify_hash_chain(
                 "mismatch_index": index,
                 "expected_hash": expected,
                 "actual_hash": event.get(hash_field),
+                "expected_prev_hash": previous,
+                "actual_prev_hash": event.get(prev_field),
                 "error": f"{hash_field} mismatch",
             }
         previous = expected

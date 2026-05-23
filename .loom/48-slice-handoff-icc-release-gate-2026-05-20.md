@@ -15,6 +15,7 @@
   - Added Criterion benchmarks for hashing, ranking, NDJSON reader, pattern matching, and mail parsing under the `icc_release_gate` group.
   - Added `docs/benchmark-ledger.md` and linked README performance wording to the ledger.
   - Updated CI to run `python -m pytest -q python/tests` after installing the built wheel.
+  - May 23 follow-up: added an ICC-shaped hash-chain service fixture and aligned fallback mismatch diagnostics with the native verifier.
 - Key files:
   - `python/fi_accel/fallback.py`
   - `python/tests/test_icc_release_gate.py`
@@ -31,6 +32,7 @@
   - temporary venv native-extension run: `maturin develop --quiet --extras dev && python -m pytest -q tests`
   - `cargo bench -p fi-accel-core --bench benchmarks icc_release_gate`
   - `cd go/fiaccel && CGO_ENABLED=0 go test ./...`
+  - May 23 follow-up: `uv run --project python --extra dev python -m pytest -q python/tests/test_icc_release_gate.py -k hash_chain`
 
 ## What Is Still Open
 

@@ -37,6 +37,68 @@ def build_hash_chain():
     return events
 
 
+def build_service_hash_chain():
+    records = [
+        {
+            "event_id": "evt-2026-05-23-0001",
+            "timestamp": "2026-05-23T17:00:00Z",
+            "tenant": "flexinfer",
+            "project_slug": "icc-project-workspaces",
+            "actor": {"type": "agent", "id": "codex"},
+            "operation": "capture.created",
+            "resource": {"type": "capture", "id": "cap-001"},
+            "payload": {
+                "source": "email",
+                "path": "projects/fi-accel/email/cap-001.md",
+                "labels": ["release-gate", "hash-chain"],
+            },
+            "metadata": {"request_id": "req-001", "fallback": False},
+        },
+        {
+            "event_id": "evt-2026-05-23-0002",
+            "timestamp": "2026-05-23T17:03:12Z",
+            "tenant": "flexinfer",
+            "project_slug": "icc-project-workspaces",
+            "actor": {"type": "agent", "id": "codex"},
+            "operation": "capture.indexed",
+            "resource": {"type": "capture", "id": "cap-001"},
+            "payload": {
+                "chunk_count": 7,
+                "embedding_model": "text-embedding-3-small",
+                "artifact_sha256": "9f7f4a934aa3c5684f1a0f77870d2fbb1f726c8ec0e0873dd3277197f45d4b2b",
+            },
+            "metadata": {"request_id": "req-002", "fallback": False},
+        },
+        {
+            "event_id": "evt-2026-05-23-0003",
+            "timestamp": "2026-05-23T17:06:29Z",
+            "tenant": "flexinfer",
+            "project_slug": "icc-project-workspaces",
+            "actor": {"type": "service", "id": "icc-api"},
+            "operation": "capture.linked",
+            "resource": {"type": "capture", "id": "cap-001"},
+            "payload": {
+                "linked_issue": "FA-PLAN-04",
+                "status": "verified",
+                "references": [
+                    "docs/benchmark-ledger.md",
+                    ".loom/45-planning-audit-and-backlog-2026-05-20.md",
+                ],
+            },
+            "metadata": {"request_id": "req-003", "fallback": False},
+        },
+    ]
+
+    previous = ""
+    events = []
+    for record in records:
+        event = {"prev_hash": previous, **record}
+        event["entry_hash"] = canonical_sha256(event)
+        previous = event["entry_hash"]
+        events.append(event)
+    return events
+
+
 def multipart_email():
     return b"""Subject: Release gate
 From: codex@example.test
@@ -104,6 +166,45 @@ def test_token_count_batch_matches_scalar_api():
 
     tokenizer = NATIVE.Tokenizer("gpt-4")
     assert tokenizer.count_batch(texts) == [tokenizer.count(text) for text in texts]
+
+
+def test_icc_hash_chain_service_fixture_native_matches_fallback():
+    events = build_service_hash_chain()
+
+    native = NATIVE.verify_hash_chain(events)
+    slow = fallback.verify_hash_chain(events)
+
+    assert native == slow
+    assert native["valid"] is True
+    assert native["total_events"] == native["verified_events"] == 3
+
+
+def test_icc_hash_chain_service_fixture_rejects_tampering():
+    events = build_service_hash_chain()
+    tampered = json.loads(json.dumps(events))
+    tampered[1]["payload"]["chunk_count"] = 8
+
+    native = NATIVE.verify_hash_chain(tampered)
+    slow = fallback.verify_hash_chain(tampered)
+
+    assert native == slow
+    assert native["valid"] is False
+    assert native["mismatch_index"] == 1
+    assert native["error"] == "entry_hash mismatch"
+    assert native["actual_hash"] == events[1]["entry_hash"]
+
+    broken_link = json.loads(json.dumps(events))
+    broken_link[2]["prev_hash"] = "0" * 64
+
+    native = NATIVE.verify_hash_chain(broken_link)
+    slow = fallback.verify_hash_chain(broken_link)
+
+    assert native == slow
+    assert native["valid"] is False
+    assert native["mismatch_index"] == 2
+    assert native["error"] == "prev_hash mismatch"
+    assert native["expected_prev_hash"] == events[1]["entry_hash"]
+    assert native["actual_prev_hash"] == "0" * 64
 
 
 def test_icc_text_encoding_and_ndjson_native_matches_fallback():
