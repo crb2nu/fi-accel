@@ -132,3 +132,25 @@ Python allocation, but it should not become the default `py-codebase-memory`
 path until chunk identity/cardinality parity is either fixed or accepted by the
 downstream index contract. The earlier per-chunk `fi_accel.count_tokens` path
 remains blocked for default adoption.
+
+### Chunk Schema Parity Fixture
+
+Run from this repo against the current `py-codebase-memory` checkout:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/check_code_memory_chunk_parity.py
+```
+
+Input shape: all 16 Python files under `py-codebase-memory/src/codebase_memory`,
+compared between local `PythonIndexer` chunking and `fi_accel.chunk_code`.
+
+| Surface | Compared fields | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory chunk schema parity | chunk count, id, type, file path, line/column spans, name, parent name/type, calls, definitions | PASS: 141 local chunks, 141 `fi_accel` chunks, `first_divergence: null` | 2026-05-23 | Aligns code chunk IDs with the downstream zero-based hash input while keeping public line spans one-based; Python files with no semantic class/function chunks now match local `PythonIndexer` cardinality. |
+
+Decision: the chunk identity/cardinality blocker for the 16-file
+`py-codebase-memory/src/codebase_memory` fixture is closed. Default downstream
+adoption still needs the token-counting path decision from the cached tokenizer
+follow-up.
