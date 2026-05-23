@@ -6,7 +6,7 @@ The package is built from the Rust crate at `crates/fi-accel-py`.
 
 Current Python surface:
 
-- tokenizer helpers: `count_tokens`, `truncate_to_tokens`, `split_by_tokens`, `Tokenizer`
+- tokenizer helpers: `count_tokens`, `count_tokens_batch`, `truncate_to_tokens`, `split_by_tokens`, `Tokenizer`
 - embedding helpers: `normalize_l2`, `cosine_similarity`, `cosine_similarity_matrix`, `top_k_similar`, `compute_centroid`, `prepare_embedding_batch`
 - ranking helpers: `hybrid_rank`, `rrf_fuse`
 - diff helpers: `FuzzyMatcher`, `parse_unified_diff`

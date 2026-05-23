@@ -22,6 +22,13 @@ fn count_tokens(text: &str, model: &str) -> PyResult<usize> {
     tokenizer::count_tokens(text, model).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
+/// Count tokens for multiple texts with one tokenizer setup
+#[pyfunction]
+#[pyo3(signature = (texts, model = "gpt-4"))]
+fn count_tokens_batch(texts: Vec<String>, model: &str) -> PyResult<Vec<usize>> {
+    tokenizer::count_tokens_batch(&texts, model).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Truncate text to fit within max_tokens
 #[pyfunction]
 #[pyo3(signature = (text, max_tokens, model = "gpt-4"))]
@@ -61,6 +68,10 @@ impl Tokenizer {
 
     fn count(&self, text: &str) -> usize {
         self.inner.count(text)
+    }
+
+    fn count_batch(&self, texts: Vec<String>) -> Vec<usize> {
+        self.inner.count_batch(&texts)
     }
 
     fn truncate(&self, text: &str, max_tokens: usize) -> String {
@@ -972,6 +983,7 @@ fn capabilities(py: Python<'_>) -> PyResult<PyObject> {
 fn fi_accel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Tokenizer functions
     m.add_function(wrap_pyfunction!(count_tokens, m)?)?;
+    m.add_function(wrap_pyfunction!(count_tokens_batch, m)?)?;
     m.add_function(wrap_pyfunction!(truncate_to_tokens, m)?)?;
     m.add_function(wrap_pyfunction!(split_by_tokens, m)?)?;
     m.add_class::<Tokenizer>()?;

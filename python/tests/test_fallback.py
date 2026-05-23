@@ -41,3 +41,6 @@ def test_tokenizer_roundtrip():
     encoded = tokenizer.encode("abc")
     assert tokenizer.decode(encoded) == "abc"
     assert tokenizer.count("hello world") > 0
+    texts = ["hello world", "def f():\n    return 1\n", ""]
+    assert fallback.count_tokens_batch(texts) == [fallback.count_tokens(text) for text in texts]
+    assert tokenizer.count_batch(texts) == [tokenizer.count(text) for text in texts]

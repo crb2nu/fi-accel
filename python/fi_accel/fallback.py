@@ -30,6 +30,10 @@ def count_tokens(text: str, model: str = "gpt-4") -> int:
     return _estimate_tokens(text)
 
 
+def count_tokens_batch(texts: Iterable[str], model: str = "gpt-4") -> list[int]:
+    return [count_tokens(text, model) for text in texts]
+
+
 def truncate_to_tokens(text: str, max_tokens: int, model: str = "gpt-4") -> str:
     del model
     if max_tokens <= 0:
@@ -64,6 +68,9 @@ class Tokenizer:
 
     def count(self, text: str) -> int:
         return count_tokens(text, self._model)
+
+    def count_batch(self, texts: Iterable[str]) -> list[int]:
+        return count_tokens_batch(texts, self._model)
 
     def truncate(self, text: str, max_tokens: int) -> str:
         return truncate_to_tokens(text, max_tokens, self._model)
@@ -820,6 +827,7 @@ def capabilities() -> dict[str, bool]:
 
 __all__ = [
     "count_tokens",
+    "count_tokens_batch",
     "truncate_to_tokens",
     "split_by_tokens",
     "Tokenizer",

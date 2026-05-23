@@ -73,6 +73,7 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 ```python
 from fi_accel import (
     count_tokens,
+    count_tokens_batch,
     truncate_to_tokens,
     split_by_tokens,
     cosine_similarity_matrix,
@@ -100,6 +101,7 @@ from fi_accel import (
 
 # Token counting
 tokens = count_tokens("Hello, world!", model="gpt-4")  # 4
+batch_counts = count_tokens_batch(["Hello", "world"], model="gpt-4")
 gemma_tokens = count_tokens("Hello, Gemma!", model="gemma")
 
 # Token-based text splitting
