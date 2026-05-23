@@ -154,3 +154,47 @@ Decision: the chunk identity/cardinality blocker for the 16-file
 `py-codebase-memory/src/codebase_memory` fixture is closed. Default downstream
 adoption still needs the token-counting path decision from the cached tokenizer
 follow-up.
+
+### Batched Exact Token Count Follow-Up
+
+Narrow fix chosen: add an additive Python `count_tokens_batch` API backed by a
+single Rust tokenizer setup, plus `Tokenizer.count_batch`, so Python consumers
+can keep their current chunking contracts while removing one PyO3 call per
+chunk. The full `fi_accel.chunk_code(..., model="gpt-4")` path also reuses the
+chunker-provided exact `token_count` values for comparison now that chunk
+schema parity is closed on this fixture.
+
+Run from this repo against the current `py-codebase-memory` checkout:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/bench_code_memory_token_counts.py --repeats 7
+```
+
+Input shape: all 16 Python files under `py-codebase-memory/src/codebase_memory`,
+114240 bytes total, parsed repeatedly with `PythonIndexer` for the local modes.
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion | local tree-sitter + heuristic token estimate | 88.96 ms median, 1489.2 KiB median peak Python allocation, 141 chunks, 26232 estimated tokens | 2026-05-23 | Same local chunking/token heuristic fixture shape as the prior FA-PLAN-06 proofs. |
+| Python code-memory ingestion | local tree-sitter + batched `fi_accel.count_tokens_batch` | 95.54 ms median, 1236.2 KiB median peak Python allocation, 141 chunks, 22117 exact tokens | 2026-05-23 | Removes per-chunk Python/PyO3 token-count calls; exact counting adds about 6.6 ms median over the heuristic path on this input set. |
+| Python code-memory ingestion | `fi_accel.chunk_code(model="gpt-4")` with chunker token counts | 26.70 ms median, 706.3 KiB median peak Python allocation, 141 chunks, 22117 exact tokens | 2026-05-23 | Reuses chunker-provided exact token counts after the chunk parity fixture closed; validates the fast full-helper path separately from local-contract adoption. |
+
+Validation:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/check_code_memory_chunk_parity.py
+```
+
+Result: PASS with 141 local chunks, 141 `fi_accel` chunks, and
+`first_divergence: null`.
+
+Decision: local `PythonIndexer` chunking plus exact `fi_accel` token counts is
+now defaultable for this fixture when downstream switches from per-chunk
+`count_tokens` calls to `count_tokens_batch`. Full `fi_accel.chunk_code` with
+chunker-provided exact counts also clears the local wall-time/allocation and
+chunk-parity gates on this fixture, but the downstream default flip should still
+land as an explicit `py-codebase-memory` integration change.

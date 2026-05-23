@@ -25,6 +25,7 @@ try:
     from fi_accel.fi_accel import (
         # Tokenizer
         count_tokens,
+        count_tokens_batch,
         truncate_to_tokens,
         split_by_tokens,
         Tokenizer,
@@ -97,6 +98,7 @@ except ImportError:
         cosine_similarity,
         cosine_similarity_matrix,
         count_tokens,
+        count_tokens_batch,
         detect_encoding,
         detect_content_type,
         extract_calls,
@@ -151,6 +153,7 @@ def sha256_stream(reader, chunk_size=65536):
 __all__ = [
     # Tokenizer
     "count_tokens",
+    "count_tokens_batch",
     "truncate_to_tokens",
     "split_by_tokens",
     "Tokenizer",

@@ -112,3 +112,23 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S1] `go/fiaccel/markdown.go`
   - [S2] `go/fiaccel/version.go`
   - [S3] `.loom/30-implementation-plan.md`
+
+### 2026-05-23: Default exact code-memory token counts through batching
+
+- Decision:
+  - Add `count_tokens_batch` and `Tokenizer.count_batch` as additive Python APIs.
+  - Treat local `PythonIndexer` chunking plus exact `fi_accel` token counts as defaultable for the current `py-codebase-memory/src/codebase_memory` fixture once downstream consumes the batched API.
+- Rationale:
+  - The repeated-small-chunk blocker was Python/PyO3 call overhead, not token exactness itself. The batched API counts all 141 local chunks through one Python extension call and one tokenizer setup.
+  - The May 23 benchmark shows local heuristic counting at 88.96 ms median and local chunking with batched exact counts at 95.54 ms median. The exact path is within roughly 6.6 ms median while producing exact GPT-4 counts.
+  - The already-closed chunk parity fixture still passes, and `fi_accel.chunk_code(model="gpt-4")` reaches 26.70 ms median with 141 chunks and matching exact token totals.
+- Alternatives considered:
+  - Keep optimizing scalar `count_tokens` only.
+  - Make `py-codebase-memory` default to the full Rust chunker in this library slice.
+- Consequences:
+  - Existing scalar APIs remain stable.
+  - Downstream default adoption should be a separate `py-codebase-memory` change that calls `count_tokens_batch` for local chunks or explicitly opts into chunker-provided exact counts.
+- Sources:
+  - [S1] `docs/benchmark-ledger.md`
+  - [S2] `scripts/bench_code_memory_token_counts.py`
+  - [S3] `crates/fi-accel-py/src/lib.rs`

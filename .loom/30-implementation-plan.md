@@ -95,7 +95,7 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
 - P1: FA-PLAN-04 ICC Utility Release Gate.
 - P1: FA-PLAN-05 Gemma Fixture Harness.
 - Done/Gated: FA-PLAN-06 Code-Memory Ingestion Proof.
-- P2: FA-PLAN-06B Repeated Token Counting Fast Path.
+- Done: FA-PLAN-06B Repeated Token Counting Fast Path.
 - P2: FA-PLAN-06A Specialized Route Extractor Kill-Test.
 - Done: FA-PLAN-07 Go Parity Decision.
 - P2: FA-PLAN-08 WASM Tokenizer And Code-Chunking Kill-Test.
@@ -103,6 +103,16 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
 - P3: FA-PLAN-10 Patch Repair Revisit.
 
 See `.loom/45-planning-audit-and-backlog-2026-05-20.md` for acceptance criteria and evidence.
+
+2026-05-23 update: FA-PLAN-06B landed as an additive batched tokenizer API
+(`count_tokens_batch` and `Tokenizer.count_batch`) plus a repeatable
+`py-codebase-memory` benchmark script. The May 23 fixture result makes local
+`PythonIndexer` chunking plus exact `fi_accel` token counts defaultable once the
+downstream integration switches away from per-chunk scalar `count_tokens` calls:
+88.96 ms median for heuristic counts versus 95.54 ms median for batched exact
+counts over 141 chunks. The full `fi_accel.chunk_code(model="gpt-4")` path is
+also faster at 26.70 ms median with passing chunk parity, but should still be
+promoted by an explicit downstream adoption change.
 
 ## Test Plan
 

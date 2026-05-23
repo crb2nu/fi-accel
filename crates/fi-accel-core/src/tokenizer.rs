@@ -281,6 +281,14 @@ impl Tokenizer {
         self.backend.count(text)
     }
 
+    /// Count tokens for multiple texts using the same tokenizer instance.
+    pub fn count_batch<S: AsRef<str>>(&self, texts: &[S]) -> Vec<usize> {
+        texts
+            .iter()
+            .map(|text| self.backend.count(text.as_ref()))
+            .collect()
+    }
+
     /// Encode text to token IDs
     pub fn encode(&self, text: &str) -> Vec<u32> {
         self.backend.encode(text)
@@ -351,6 +359,15 @@ pub fn count_tokens(text: &str, model: &str) -> Result<usize, TokenizerError> {
     Ok(tokenizer.count(text))
 }
 
+/// Count tokens for multiple texts using one tokenizer instance.
+pub fn count_tokens_batch<S: AsRef<str>>(
+    texts: &[S],
+    model: &str,
+) -> Result<Vec<usize>, TokenizerError> {
+    let tokenizer = Tokenizer::new(model)?;
+    Ok(tokenizer.count_batch(texts))
+}
+
 /// Truncate text to max_tokens for a given model
 pub fn truncate_to_tokens(
     text: &str,
@@ -382,6 +399,16 @@ mod tests {
         let count = tokenizer.count("Hello, world!");
         assert!(count > 0);
         assert!(count < 10); // Should be around 4 tokens
+    }
+
+    #[test]
+    fn test_count_tokens_batch_matches_scalar_counts() {
+        let texts = vec!["Hello, world!", "def hello(name):\n    return name\n", ""];
+        let tokenizer = Tokenizer::new("gpt-4").unwrap();
+        let expected: Vec<usize> = texts.iter().map(|text| tokenizer.count(text)).collect();
+
+        assert_eq!(tokenizer.count_batch(&texts), expected);
+        assert_eq!(count_tokens_batch(&texts, "gpt-4").unwrap(), expected);
     }
 
     #[test]

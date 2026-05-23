@@ -61,6 +61,7 @@ attached note
 
 def test_fallback_submodule_exports_icc_release_helpers():
     expected = {
+        "count_tokens_batch",
         "sha256_batch",
         "sha256_stream",
         "verify_hash_chain",
@@ -92,6 +93,17 @@ def test_icc_hashing_native_matches_fallback():
         io.BytesIO(stream_payload), chunk_size=13
     )
     assert NATIVE.verify_hash_chain(events) == fallback.verify_hash_chain(events)
+
+
+def test_token_count_batch_matches_scalar_api():
+    texts = ["hello world", "def f():\n    return 1\n", ""]
+
+    assert NATIVE.count_tokens_batch(texts, model="gpt-4") == [
+        NATIVE.count_tokens(text, model="gpt-4") for text in texts
+    ]
+
+    tokenizer = NATIVE.Tokenizer("gpt-4")
+    assert tokenizer.count_batch(texts) == [tokenizer.count(text) for text in texts]
 
 
 def test_icc_text_encoding_and_ndjson_native_matches_fallback():
