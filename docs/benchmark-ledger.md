@@ -151,9 +151,9 @@ compared between local `PythonIndexer` chunking and `fi_accel.chunk_code`.
 | Python code-memory chunk schema parity | chunk count, id, type, file path, line/column spans, name, parent name/type, calls, definitions | PASS: 141 local chunks, 141 `fi_accel` chunks, `first_divergence: null` | 2026-05-23 | Aligns code chunk IDs with the downstream zero-based hash input while keeping public line spans one-based; Python files with no semantic class/function chunks now match local `PythonIndexer` cardinality. |
 
 Decision: the chunk identity/cardinality blocker for the 16-file
-`py-codebase-memory/src/codebase_memory` fixture is closed. Default downstream
-adoption still needs the token-counting path decision from the cached tokenizer
-follow-up.
+`py-codebase-memory/src/codebase_memory` fixture is closed. At this point,
+default downstream adoption still needed the token-counting path decision that
+was later settled by the batched exact-token follow-up below.
 
 ### Batched Exact Token Count Follow-Up
 
@@ -163,6 +163,12 @@ can keep their current chunking contracts while removing one PyO3 call per
 chunk. The full `fi_accel.chunk_code(..., model="gpt-4")` path also reuses the
 chunker-provided exact `token_count` values for comparison now that chunk
 schema parity is closed on this fixture.
+
+This is the current tokenizer API decision after the May 23 merge
+(`62c6ca9`, including `8a4a705`): keep the merged batch API. The benchmark
+below supersedes stale local notes that proposed rejecting the branch after a
+cached scalar-only rerun, because the merged batch path preserves the local
+chunk contract while reducing exact-count overhead and Python allocation.
 
 Run from this repo against the current `py-codebase-memory` checkout:
 

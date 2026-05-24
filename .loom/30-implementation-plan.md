@@ -45,6 +45,10 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
   - Added an ICC-shaped audit-chain fixture to the Python release-gate tests.
   - Native and fallback `verify_hash_chain` now agree on valid, tampered-payload, and broken-link diagnostics for that fixture.
   - The fallback result shape now includes `expected_prev_hash` and `actual_prev_hash` on entry-hash mismatches, matching the native diagnostic payload.
+- 2026-05-24 May 23 merge reconciliation:
+  - Reconciled the merged FA-PLAN-06B batch-token API (`62c6ca9`, including `8a4a705`) against stale local notes that proposed trimming it after a scalar-only cached rerun.
+  - Decision: keep `count_tokens_batch` and `Tokenizer.count_batch`; the merged benchmark shows local `PythonIndexer` plus batched exact counts at 95.54 ms median versus 88.96 ms heuristic over the same 141 chunks, with lower peak Python allocation.
+  - Reconfirmed the FA-PLAN-04 hash-chain fixture merge (`020b1c8`, including `fbbaa22`) as landed; no follow-up trim is needed for the verifier fixture or fallback diagnostic parity.
 
 ## Plan
 
@@ -72,12 +76,13 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
      - keep code chunking optional unless parser bundle size is acceptable
    - Next action: decide FA-PLAN-08 before adding more WASM parity surface.
 
-4. Expand chunk metadata for indexing workflows. Status: implemented in the library; downstream proof closed as opt-in, not default.
+4. Expand chunk metadata for indexing workflows. Status: implemented in the library; exact token default is unblocked by the merged batched-count path, while downstream full-chunker adoption remains separate.
    - Define a richer chunk schema in Rust first.
    - Add fields that downstream indexers actually need, such as import summaries and stronger symbol/container metadata.
    - Preserve the current chunk schema fields so existing Python callers do not break.
-   - Validated against `py-codebase-memory`; the proof preserved opt-in modes because the accelerated paths missed the downstream wall-time gate.
-   - Next action: execute FA-PLAN-06B from `.loom/45-planning-audit-and-backlog-2026-05-20.md` if local code still rebuilds tokenizer state for repeated small chunks.
+   - Validated against `py-codebase-memory`; the original proof preserved opt-in modes because the accelerated paths missed the downstream wall-time gate.
+   - The May 23 FA-PLAN-06B merge closes the repeated-small-chunk token blocker with `count_tokens_batch` while preserving local `PythonIndexer` chunking.
+   - Next action: land an explicit downstream `py-codebase-memory` integration that consumes `count_tokens_batch`; decide full `fi_accel.chunk_code` adoption separately from the token-counting gate.
 
 5. Improve Python vector/data interop. Status: still open.
    - Prototype NumPy-oriented APIs using the Rust `numpy` crate.
@@ -92,14 +97,14 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
    - Add benchmark coverage for tokenizer, transport, TOML/TOON, and any new interop paths.
    - Publish minimal examples for Rust, Python, Go, and JS/WASM.
    - Add downstream smoke tests where feasible.
-   - Next action: execute FA-PLAN-04 and FA-PLAN-09 from `.loom/45-planning-audit-and-backlog-2026-05-20.md`.
+   - Next action: keep extending the benchmark ledger before promoting any remaining unmeasured release claims.
 
 ## Active Backlog
 
-- Done: FA-PLAN-04 ICC Utility Release Gate; hash-chain service fixture added for the remaining ICC verifier proof.
+- Done: FA-PLAN-04 hash-chain service fixture proof; broader ICC release hardening continues through Gemma exactness and claim-backed benchmark work.
 - P1: FA-PLAN-05 Gemma Fixture Harness.
-- Done/Gated: FA-PLAN-06 Code-Memory Ingestion Proof.
-- Done: FA-PLAN-06B Repeated Token Counting Fast Path.
+- Done/Gated: FA-PLAN-06 Code-Memory Ingestion Proof; original default promotion remained blocked until the follow-up token gate.
+- Done: FA-PLAN-06B Repeated Token Counting Fast Path; keep the merged batch API based on the May 23 benchmark evidence.
 - P2: FA-PLAN-06A Specialized Route Extractor Kill-Test.
 - Done: FA-PLAN-07 Go Parity Decision.
 - P2: FA-PLAN-08 WASM Tokenizer And Code-Chunking Kill-Test.
