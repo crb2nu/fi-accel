@@ -242,6 +242,10 @@ const caps = capabilities();
 
 ### Go
 
+See [Go Markdown helper recipes](docs/go-markdown-recipes.md) for focused
+service-edge examples covering fenced model payload cleanup, transcript block
+extraction, compact text storage, and capability guards.
+
 ```go
 package main
 
