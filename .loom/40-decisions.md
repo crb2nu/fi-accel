@@ -132,3 +132,38 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S1] `docs/benchmark-ledger.md`
   - [S2] `scripts/bench_code_memory_token_counts.py`
   - [S3] `crates/fi-accel-py/src/lib.rs`
+
+### 2026-05-24: Keep merged batch token API after reconciliation
+
+- Decision:
+  - Keep the May 23 batch-token API merge (`62c6ca9`, including `8a4a705`) instead of trimming `count_tokens_batch` or `Tokenizer.count_batch`.
+- Rationale:
+  - The stale local checkout contained notes that rejected the batch API after a cached scalar-only rerun, but those notes predate and contradict the current `main` history.
+  - The merged benchmark evidence is the stronger source of truth for the API surface: local `PythonIndexer` plus batched exact counts preserves 141 chunks, records 22117 exact tokens, and measures 95.54 ms median versus 88.96 ms for the heuristic baseline while lowering median peak Python allocation from 1489.2 KiB to 1236.2 KiB.
+  - The API is additive and directly matches the downstream integration shape: keep local chunking, replace per-chunk scalar token calls with one batched exact-count call.
+- Alternatives considered:
+  - Remove the merged batch API and rely on cached scalar `count_tokens`.
+  - Keep only `Tokenizer.count_batch` and remove the module-level wrapper.
+- Consequences:
+  - Downstream `py-codebase-memory` should switch local chunk token counting to `count_tokens_batch` in its own integration slice.
+  - Future scalar-only benchmark notes must be treated as historical unless they are rerun against current `main` and explain why the batch path no longer applies.
+- Sources:
+  - [S1] `docs/benchmark-ledger.md`
+  - [S2] `scripts/bench_code_memory_token_counts.py`
+  - [S3] commit `8a4a705`
+
+### 2026-05-24: Treat hash-chain service fixture as landed
+
+- Decision:
+  - Keep the May 23 hash-chain fixture merge (`020b1c8`, including `fbbaa22`) as the current FA-PLAN-04 state.
+- Rationale:
+  - The fixture covers the ICC-shaped audit-chain verifier cases that stale local planning notes still listed as open: valid chain, tampered payload, and broken `prev_hash` diagnostics across native and fallback paths.
+  - The fallback diagnostic shape now matches native mismatch details by including `expected_prev_hash` and `actual_prev_hash`.
+- Alternatives considered:
+  - Carry forward stale notes that still describe the service-shaped hash-chain fixture as missing.
+- Consequences:
+  - FA-PLAN-04 release hardening can move on to remaining gates such as Gemma exactness and claim-backed benchmarks; the hash-chain service fixture should not be re-planned.
+- Sources:
+  - [S1] `python/tests/test_icc_release_gate.py`
+  - [S2] `python/fi_accel/fallback.py`
+  - [S3] commit `fbbaa22`
