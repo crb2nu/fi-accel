@@ -218,6 +218,40 @@ chunker-provided exact counts also clears the local wall-time/allocation and
 chunk-parity gates on this fixture, but the downstream default flip should still
 land as an explicit `py-codebase-memory` integration change.
 
+Downstream integration result: on 2026-05-25, `py-codebase-memory` switched
+local `PythonIndexer` chunk token assignment from per-chunk scalar exact counts
+to `fi_accel.count_tokens_batch` behind the existing exact-token mode. The
+benchmark script now measures that downstream path directly rather than counting
+local chunks externally.
+
+Run from this repo against `/Users/cblevins/workspace/libs/py-codebase-memory`:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/bench_code_memory_token_counts.py --repeats 7
+```
+
+Input shape: all 16 Python files under `py-codebase-memory/src/codebase_memory`,
+116081 bytes total, parsed repeatedly with `PythonIndexer` for the local modes.
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion | local tree-sitter + heuristic token estimate | 107.91 ms median, 1498.1 KiB median peak Python allocation, 144 chunks, 26663 estimated tokens | 2026-05-25 | Current downstream fixture after the local batch-token integration. |
+| Python code-memory ingestion | local tree-sitter + downstream batched `fi_accel.count_tokens_batch` | 93.99 ms median, 1497.1 KiB median peak Python allocation, 144 chunks, 22504 exact tokens | 2026-05-25 | `PythonIndexer` now assigns exact local chunk token counts through the batched API; the planned downstream follow-up is landed for exact-token mode. |
+| Python code-memory ingestion | `fi_accel.chunk_code(model="gpt-4")` with chunker token counts | 26.96 ms median, 720.1 KiB median peak Python allocation, 144 chunks, 22504 exact tokens | 2026-05-25 | Full-helper path remains a separate default-adoption decision, but it still matches local exact token totals on this fixture. |
+
+Parity validation:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable ./python \
+  python scripts/check_code_memory_chunk_parity.py
+```
+
+Result: PASS with 144 local chunks, 144 `fi_accel` chunks, and
+`first_divergence: null`.
+
 ### Scalar Token Gate Rerun (Historical)
 
 A local scalar-only rerun on 2026-05-23 also showed that cached scalar
@@ -240,7 +274,9 @@ uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
 | Python code-memory ingestion | `fi_accel.chunk_code` + cached token counts | 29.09 ms median, 28.76-29.82 ms range, 617.4 KiB median peak Python allocation, 141 chunks | 2026-05-23 | Historical comparison point before the merged batched-count benchmark. |
 
 Decision: keep this as historical evidence only. The current API guidance is to
-use `count_tokens_batch` for downstream local-chunk exact token counting.
+use `count_tokens_batch` for downstream local-chunk exact token counting; the
+`py-codebase-memory` exact-token mode now does this for local `PythonIndexer`
+chunks.
 
 ## WASM Tokenizer And Code-Chunking Kill-Test
 

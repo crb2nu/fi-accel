@@ -168,6 +168,26 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S2] `scripts/bench_code_memory_token_counts.py`
   - [S3] commit `8a4a705`
 
+### 2026-05-25: Downstream PythonIndexer consumes batch token counts
+
+- Decision:
+  - Treat the downstream local `PythonIndexer` exact-token integration as landed: `py-codebase-memory` now assigns local chunk token counts with `fi_accel.count_tokens_batch` instead of scalar `count_tokens` calls.
+  - Keep full `fi_accel.chunk_code` default adoption as a separate downstream contract decision.
+- Rationale:
+  - The downstream rerun measures the integration directly: 144 local chunks, 22504 exact tokens, and 93.99 ms median for downstream batched exact counts versus 107.91 ms median for heuristic counts on the current 16-file fixture.
+  - Chunk schema parity still passes with 144 local chunks, 144 `fi_accel` chunks, and `first_divergence: null`.
+  - The full chunker path remains faster at 26.96 ms median, but it changes which implementation owns chunk extraction and should be adopted separately from token-counting exactness.
+- Alternatives considered:
+  - Leave `py-codebase-memory` on scalar exact counting and keep the May 23 result as only a prototype.
+  - Flip `py-codebase-memory` directly to full `fi_accel.chunk_code`.
+- Consequences:
+  - The May 23 downstream follow-up is no longer planned work for local `PythonIndexer` exact token counts.
+  - Future code-memory token gate reruns should use the downstream exact mode, not an external post-parse batch count.
+- Sources:
+  - [S1] `/Users/cblevins/workspace/libs/py-codebase-memory/src/codebase_memory/indexers/base.py`
+  - [S2] `/Users/cblevins/workspace/libs/py-codebase-memory/src/codebase_memory/indexers/python_indexer.py`
+  - [S3] `docs/benchmark-ledger.md`
+
 ### 2026-05-24: Treat hash-chain service fixture as landed
 
 - Decision:

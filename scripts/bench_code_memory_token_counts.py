@@ -2,8 +2,8 @@
 """Benchmark py-codebase-memory-shaped exact token-count paths.
 
 This keeps the May 21 ingestion shape focused on PythonIndexer chunking and
-token counts, while avoiding downstream source changes during the fi-accel
-prototype loop.
+token counts, using py-codebase-memory's downstream batched exact-count path
+for the local tree-sitter mode.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import codebase_memory.indexers.base as base_indexer_module
 import codebase_memory.indexers.python_indexer as python_indexer_module
 from codebase_memory.indexers.python_indexer import PythonIndexer
 
-from fi_accel import chunk_code, count_tokens_batch
+from fi_accel import chunk_code
 
 
 @dataclass
@@ -48,7 +48,20 @@ def _collect_python_files(repo: Path) -> list[Path]:
 def _force_local_heuristic() -> None:
     base_indexer_module._token_mode = "heuristic"
     base_indexer_module._fi_accel_count_tokens = None
+    base_indexer_module._fi_accel_count_tokens_batch = None
     base_indexer_module._fi_accel_checked = False
+    base_indexer_module._fi_accel_batch_checked = False
+    python_indexer_module._chunk_mode = "local"
+    python_indexer_module._fi_accel_chunk_code = None
+    python_indexer_module._fi_accel_chunk_checked = False
+
+
+def _force_local_batched_exact() -> None:
+    base_indexer_module._token_mode = "auto"
+    base_indexer_module._fi_accel_count_tokens = None
+    base_indexer_module._fi_accel_count_tokens_batch = None
+    base_indexer_module._fi_accel_checked = False
+    base_indexer_module._fi_accel_batch_checked = False
     python_indexer_module._chunk_mode = "local"
     python_indexer_module._fi_accel_chunk_code = None
     python_indexer_module._fi_accel_chunk_checked = False
@@ -69,17 +82,19 @@ def _local_heuristic(files: list[Path], repo: Path, _model: str) -> tuple[int, i
 
 
 def _local_batched_exact(files: list[Path], repo: Path, model: str) -> tuple[int, int]:
-    _force_local_heuristic()
+    del model
+
+    _force_local_batched_exact()
     indexer = PythonIndexer(max_chunk_tokens=512, overlap_tokens=64)
-    chunk_contents: list[str] = []
+    chunks = []
     for path in files:
-        chunks = indexer.parse(
-            path.read_text(encoding="utf-8", errors="ignore"),
-            path.relative_to(repo),
+        chunks.extend(
+            indexer.parse(
+                path.read_text(encoding="utf-8", errors="ignore"),
+                path.relative_to(repo),
+            )
         )
-        chunk_contents.extend(chunk.content for chunk in chunks)
-    counts = count_tokens_batch(chunk_contents, model=model)
-    return len(chunk_contents), sum(counts)
+    return len(chunks), sum(chunk.token_count for chunk in chunks)
 
 
 def _fi_accel_chunker_exact(files: list[Path], repo: Path, model: str) -> tuple[int, int]:

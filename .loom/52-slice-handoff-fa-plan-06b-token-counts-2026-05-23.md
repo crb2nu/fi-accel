@@ -4,7 +4,7 @@
 
 - Milestone: M5 close the loop with benchmarks, docs, and one downstream adopter.
 - Slice: FA-PLAN-06B Repeated Token Counting Fast Path.
-- Status: implemented and benchmarked; downstream default adoption is now unblocked for local chunking plus exact batched token counts.
+- Status: implemented, benchmarked, and consumed by downstream local `PythonIndexer` exact-token mode.
 
 ## What Landed
 
@@ -48,7 +48,19 @@ Local `PythonIndexer` chunking plus exact `fi_accel` token counts is now default
 
 Full `fi_accel.chunk_code(model="gpt-4")` also clears the fixture gates, but it should be promoted through an explicit downstream `py-codebase-memory` integration slice so the index contract change is visible.
 
+## Downstream Result
+
+On 2026-05-25, the sibling `py-codebase-memory` checkout switched local
+`PythonIndexer` token assignment to `fi_accel.count_tokens_batch` behind exact
+token mode. Rerunning this slice's benchmark shape reports:
+
+- Local heuristic: 107.91 ms median, 1498.1 KiB median peak Python allocation, 144 chunks, 26663 estimated tokens.
+- Downstream local plus batched exact token counts: 93.99 ms median, 1497.1 KiB median peak Python allocation, 144 chunks, 22504 exact tokens.
+- `fi_accel.chunk_code(model="gpt-4")`: 26.96 ms median, 720.1 KiB median peak Python allocation, 144 chunks, 22504 exact tokens.
+
+Parity still passes with 144 local chunks, 144 `fi_accel` chunks, and
+`first_divergence: null`.
+
 ## Next Actions
 
-1. Update `py-codebase-memory` to batch exact token counting for local chunks.
-2. Optionally evaluate making `CODEBASE_MEMORY_PYTHON_CHUNKER_MODE=fi-accel` the default after a downstream smoke test over a broader repo set.
+1. Optionally evaluate making `CODEBASE_MEMORY_PYTHON_CHUNKER_MODE=fi-accel` the default after a downstream smoke test over a broader repo set.

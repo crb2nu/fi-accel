@@ -311,7 +311,7 @@ ledger-backed highlights:
 | ICC NDJSON | `icc_release_gate/ndjson_reader_append_1k` | 526.12-557.48 us for 1K JSONL events |
 | ICC mail parsing | `icc_release_gate/parse_eml_multipart_attachment` | 3.2063-3.2880 us for a multipart EML fixture |
 | Go transport | `BenchmarkExtractJSONRPCPrefixRouteGatewayToolsCall` | 234.9-238.6 ns/op, 64 B/op, 2 allocs/op |
-| Code-memory token gate | local `PythonIndexer` plus batched `fi_accel.count_tokens_batch` | 95.54 ms median versus 88.96 ms heuristic baseline |
+| Code-memory token gate | local `PythonIndexer` plus downstream batched `fi_accel.count_tokens_batch` | 93.99 ms median versus 107.91 ms heuristic baseline |
 
 Surfaces without ledger entries should be treated as available APIs, not as
 release-backed speed claims.

@@ -64,6 +64,10 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
   - Decision: keep `count_tokens_batch` and `Tokenizer.count_batch`; the merged benchmark shows local `PythonIndexer` plus batched exact counts at 95.54 ms median versus 88.96 ms heuristic over the same 141 chunks, with lower peak Python allocation.
   - Reconfirmed the FA-PLAN-04 hash-chain fixture merge (`020b1c8`, including `fbbaa22`) as landed; no follow-up trim is needed for the verifier fixture or fallback diagnostic parity.
   - Preserved the scalar-only rerun as historical evidence but superseded its public-API conclusion with the merged batch-token benchmark and API.
+- 2026-05-25 downstream proof:
+  - `py-codebase-memory` now consumes `fi_accel.count_tokens_batch` inside local `PythonIndexer` exact-token mode instead of calling scalar `count_tokens` per chunk.
+  - Rerunning `scripts/bench_code_memory_token_counts.py` against the sibling checkout reports 144 local chunks, 22504 exact tokens, and 93.99 ms median for downstream batched exact counts versus 107.91 ms heuristic baseline; chunk parity still passes at 144 local chunks and 144 `fi_accel` chunks.
+  - The planned downstream token-counting follow-up is done for local `PythonIndexer`; full `fi_accel.chunk_code` default adoption remains a separate downstream contract decision.
 
 ## Plan
 
@@ -91,13 +95,13 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
      - keep Rust-core tree-sitter code chunking permanently unsupported in the WASM binding for the current Rust chunker path
    - FA-PLAN-08 decision: default WASM parity remains focused on UI-friendly lightweight helpers; tokenizer and parser-heavy code chunking are not promoted now.
 
-4. Expand chunk metadata for indexing workflows. Status: implemented in the library; exact token default is unblocked by the merged batched-count path, while downstream full-chunker adoption remains separate.
+4. Expand chunk metadata for indexing workflows. Status: implemented in the library; exact local `PythonIndexer` token counting is now consumed downstream through the merged batched-count path, while downstream full-chunker adoption remains separate.
    - Define a richer chunk schema in Rust first.
    - Add fields that downstream indexers actually need, such as import summaries and stronger symbol/container metadata.
    - Preserve the current chunk schema fields so existing Python callers do not break.
    - Validated against `py-codebase-memory`; the original proof preserved opt-in modes because the accelerated paths missed the downstream wall-time gate.
    - The May 23 FA-PLAN-06B merge closes the repeated-small-chunk token blocker with `count_tokens_batch` while preserving local `PythonIndexer` chunking.
-   - Next action: land an explicit downstream `py-codebase-memory` integration that consumes `count_tokens_batch`; decide full `fi_accel.chunk_code` adoption separately from the token-counting gate.
+   - The May 25 downstream proof lands the explicit `py-codebase-memory` local chunk integration and reruns the benchmark shape; decide full `fi_accel.chunk_code` adoption separately from the token-counting gate.
 
 5. Improve Python vector/data interop. Status: still open.
    - Prototype NumPy-oriented APIs using the Rust `numpy` crate.
@@ -138,6 +142,13 @@ counts over 141 chunks. The full `fi_accel.chunk_code(model="gpt-4")` path is
 also faster at 26.70 ms median with passing chunk parity, but should still be
 promoted by an explicit downstream adoption change.
 
+2026-05-25 update: the downstream `py-codebase-memory` local `PythonIndexer`
+exact-token path now assigns counts with `fi_accel.count_tokens_batch`. The
+current rerun reports 107.91 ms median for heuristic counts, 93.99 ms median
+for downstream batched exact counts, 26.96 ms median for
+`fi_accel.chunk_code(model="gpt-4")`, 144 chunks, and 22504 exact tokens.
+Chunk parity remains passing with 144 local chunks and 144 `fi_accel` chunks.
+
 ## Test Plan
 
 - Rust:
@@ -169,7 +180,7 @@ promoted by an explicit downstream adoption change.
 - The repo has a documented capability matrix and updated README surface description.
 - The Rust core exposes transport helpers that match the MCP transport spec well enough for reuse by adjacent repos.
 - Go and WASM have explicit product boundaries for unsupported parity gaps instead of unmeasured drift.
-- Chunk metadata is sufficient to support at least one indexing/intelligence consumer as an opt-in path; exact token counting has cleared the wall-time gate for local `PythonIndexer`, while full chunker default adoption still needs a downstream contract decision.
+- Chunk metadata is sufficient to support at least one indexing/intelligence consumer as an opt-in path; exact token counting has cleared the wall-time gate and is now consumed by local `PythonIndexer`, while full chunker default adoption still needs a downstream contract decision.
 - Python has a benchmark-backed plan or implementation for array-oriented vector interop.
 - Benchmarks cover every module family that is being actively promoted.
 

@@ -23,6 +23,11 @@ The scalar token-gate benchmark shape is retained as historical evidence in
 downstream integration to the merged `scripts/bench_code_memory_token_counts.py`
 and the batch API.
 
+2026-05-25 downstream result: `py-codebase-memory` now consumes the batch API in
+local `PythonIndexer` exact-token mode. The updated benchmark shape measures
+that path directly at 93.99 ms median versus 107.91 ms heuristic baseline over
+144 chunks, with 22504 exact tokens and passing 144/144 chunk parity.
+
 ## Evidence
 
 - Batched exact counting result on `main`: local `PythonIndexer` plus
@@ -48,9 +53,7 @@ and the batch API.
 
 ## Next Actions
 
-1. Downstream `py-codebase-memory` can promote exact token counting through the
-   `fi_accel.count_tokens_batch` path.
-2. Treat scalar-only token gate notes as historical unless they are rerun
+1. Treat scalar-only token gate notes as historical unless they are rerun
    against current `main` and explain why the batch path no longer applies.
-3. Treat full `fi_accel.chunk_code` default adoption as a separate downstream
+2. Treat full `fi_accel.chunk_code` default adoption as a separate downstream
    contract decision.
