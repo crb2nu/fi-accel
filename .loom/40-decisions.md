@@ -133,6 +133,22 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S2] `scripts/bench_code_memory_token_counts.py`
   - [S3] `crates/fi-accel-py/src/lib.rs`
 
+### 2026-05-23: Treat the benchmark ledger as the only README performance source
+
+- Decision:
+  - README performance summaries should link to `docs/benchmark-ledger.md` and include only dated measurements that have command, host context, input shape, and result evidence.
+- Rationale:
+  - Legacy multiplier claims for token counting, embeddings, fuzzy patching, JSON, SSE, TOML, and TOON were too broad for the current evidence. The ledger already contains narrower, reproducible measurements for ICC utilities, Go transport, and code-memory token counting.
+- Alternatives considered:
+  - Leave the old table but rely on the top-of-file ledger warning.
+  - Delete the performance section entirely until every promoted surface has fresh benchmarks.
+- Consequences:
+  - Unmeasured surfaces remain documented as APIs without speed claims. New release claims must update the ledger before the README or release notes repeat them.
+- Sources:
+  - [S1] `README.md`
+  - [S2] `docs/benchmark-ledger.md`
+  - [S3] `.loom/45-planning-audit-and-backlog-2026-05-20.md`
+
 ### 2026-05-24: Keep merged batch token API after reconciliation
 
 - Decision:
@@ -167,3 +183,43 @@ Record decisions as they are made, with date, rationale, and sources.
   - [S1] `python/tests/test_icc_release_gate.py`
   - [S2] `python/fi_accel/fallback.py`
   - [S3] commit `fbbaa22`
+
+### 2026-05-23: Keep WASM tokenizer deferred and code chunking unsupported
+
+- Decision:
+  - Do not add tokenizer support to the default `fi-accel-wasm` bundle now; defer it until there is a named browser/JS consumer and ship it only as an explicit opt-in package or feature.
+  - Treat Rust-core tree-sitter code chunking as permanently unsupported in `fi-accel-wasm` for the current Rust chunker path.
+- Rationale:
+  - The current WASM package already initializes quickly and keeps tokenizer/code chunking out of the browser bundle: 2080517 raw `.wasm` bytes, 771710 gzip bytes, and 0.405 ms median Node `initSync` on the May 23 web-target measurement.
+  - A real tokenizer prototype builds and works, but grows the `.wasm` to 9366845 raw bytes and 4097317 gzip bytes while raising median `initSync` to 1.944 ms. The runtime cost is acceptable, but the roughly 3.33 MB gzip download increase is too large for the default package without a consumer that needs exact browser tokenization.
+  - A code-chunking prototype using the current Rust tree-sitter path does not build for `wasm32-unknown-unknown`; tree-sitter and grammar crates invoke C compilation and fail on missing libc headers such as `stdlib.h` and `stdio.h`.
+- Alternatives considered:
+  - Implement tokenizer in the default package because the init-time delta is only about 1.54 ms median.
+  - Add tree-sitter code chunking behind a feature flag despite the current browser-target build failure.
+  - Mark tokenizer permanently unsupported.
+- Consequences:
+  - README and capability reporting remain honest: WASM tokenizer and code chunking stay unsupported in the default surface.
+  - Future tokenizer work must start with an opt-in packaging plan and consumer budget instead of adding `tiktoken-rs` to every JS/WASM user.
+  - Future browser code parsing should use a separate parser-WASM design or package; it should not be treated as simple parity work for the existing Rust core chunker.
+- Sources:
+  - [S1] `docs/benchmark-ledger.md`
+  - [S2] `crates/fi-accel-wasm/Cargo.toml`
+  - [S3] `crates/fi-accel-wasm/src/lib.rs`
+
+### 2026-05-23: Close first missing ICC utility benchmark proof
+
+- Decision:
+  - Add benchmark-ledger proof for FA-ICC-02 HTML-to-text extraction and FA-ICC-05 encoding detection before treating those utilities as release-ready ICC surfaces.
+- Rationale:
+  - After the ledger cleanup, the ICC release-gate table already had measurements for batch hashing, ranking/RRF, NDJSON, pattern matching, and mail parsing. The first implemented backlog utilities without benchmark rows were HTML extraction and charset detection.
+  - The new Criterion cases are narrow and consumer-shaped: 250 repeated email/article HTML fragments with entities and links, and 1K short artifact lines containing Windows-1252 smart-quote bytes.
+- Alternatives considered:
+  - Add broader performance claims for all text utilities at once.
+  - Skip benchmarks because native/fallback parity tests already cover behavior.
+- Consequences:
+  - Release notes may describe FA-ICC-02 and FA-ICC-05 as benchmark-backed utilities, but should avoid multiplier claims until a Python or ICC baseline comparison exists.
+  - The remaining FA-PLAN-04 release boundary is Gemma exactness behind a local tokenizer asset and complete fallback parity breadth for promoted native functions.
+- Sources:
+  - [S1] `crates/fi-accel-core/benches/benchmarks.rs`
+  - [S2] `docs/benchmark-ledger.md`
+  - [S3] `.loom/45-planning-audit-and-backlog-2026-05-20.md`

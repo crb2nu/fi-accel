@@ -1,14 +1,14 @@
 """
-fi-accel: High-performance acceleration library for agent/MCP workflows
+fi-accel: Rust acceleration library for agent/MCP workflows
 
 This library provides Rust-accelerated implementations of common operations
 used in LLM-based agent systems:
 
-- Token counting and manipulation (10-50x faster than tiktoken)
-- SIMD-accelerated embedding operations (50-100x faster similarity)
-- Fuzzy diff matching for patch application (10-100x faster for large files)
+- Token counting and manipulation
+- Embedding operations
+- Fuzzy diff matching for patch application
 - Efficient log streaming and filtering
-- SIMD JSON parsing
+- JSON parsing helpers
 - Syntax-aware chunking for code, markdown, and text
 
 Example usage:

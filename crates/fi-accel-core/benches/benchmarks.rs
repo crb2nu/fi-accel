@@ -3,7 +3,9 @@
 //! Run with: cargo bench -p fi-accel-core
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use fi_accel_core::{diff, embedding, hashing, json, log, mail, pattern, ranking, transport};
+use fi_accel_core::{
+    diff, embedding, encoding, hashing, json, log, mail, pattern, ranking, text, transport,
+};
 use std::time::Duration;
 
 #[cfg(feature = "chunker")]
@@ -284,6 +286,31 @@ fn bench_icc_release_gate(c: &mut Criterion) {
             let mut reader = json::NDJSONReader::new(&[]).unwrap();
             reader.append(black_box(ndjson_1k.as_bytes()))
         })
+    });
+
+    let html_fragments = (0..250)
+        .map(|i| {
+            format!(
+                "<article><h2>Artifact {i}</h2><p>Owner &amp; status \
+                 <a href=\"https://example.test/{i}\">open</a>.</p></article>"
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+    group.bench_function("html_to_text_250_fragments", |bench| {
+        bench.iter(|| text::html_to_text(black_box(&html_fragments), black_box(true)))
+    });
+
+    let legacy_bytes = (0..1_000)
+        .flat_map(|i| {
+            format!("artifact-{i}: ")
+                .into_bytes()
+                .into_iter()
+                .chain([0x93, b'q', b'u', b'o', b't', b'e', b'd', 0x94, b'\n'])
+        })
+        .collect::<Vec<_>>();
+    group.bench_function("detect_encoding_windows1252_1k_lines", |bench| {
+        bench.iter(|| encoding::detect_encoding(black_box(&legacy_bytes), black_box(8192)))
     });
 
     let patterns: Vec<String> = (0..128).map(|i| format!("vendor-{}", i)).collect();

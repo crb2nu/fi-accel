@@ -4,6 +4,13 @@ This ledger is the source of truth for performance evidence behind promoted
 `fi-accel` claims. Release notes should link here or use conservative wording
 unless a surface has a dated command, host, input shape, and result.
 
+## README Claim Policy
+
+The README performance section links to this ledger and summarizes only dated
+measurements that include a command, input shape, host context, and result.
+Surfaces without ledger evidence should be described as available APIs, not as
+speedups.
+
 ## Host Notes
 
 - Host: Apple M4 local development machine unless noted otherwise.
@@ -20,13 +27,15 @@ cargo bench -p fi-accel-core --bench benchmarks icc_release_gate
 
 | Surface | Benchmark | Input shape | Latest result | Date | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Hashing | `icc_release_gate/sha256_batch_100k_256b` | 100K byte strings, 256 bytes each | 12.340-12.616 ms | 2026-05-21 | Backs FA-ICC-01 batch-hash claims. Compare against Python `hashlib` loop before claiming a multiplier. |
-| Ranking | `icc_release_gate/hybrid_rank_1k` | 1K lexical ranks plus 1K cosine scores | 13.588-13.648 us | 2026-05-21 | Backs FA-ICC-03 hybrid-rank overhead claims. |
-| Ranking | `icc_release_gate/rrf_fuse_3x1k` | Three ranked lists, 1K IDs each | 123.04-125.94 us | 2026-05-21 | Backs FA-ICC-09 RRF helper claims. |
-| NDJSON | `icc_release_gate/ndjson_reader_append_1k` | 1K JSONL events appended in one chunk | 534.99-542.39 us | 2026-05-21 | Backs FA-ICC-06 streaming-reader claims. |
-| Pattern matching | `icc_release_gate/literal_pattern_128_over_1k_lines` | 128 literals over 1K text lines | 1.1514-1.1599 ms | 2026-05-21 | Backs FA-ICC-07 pattern-count scaling claims. |
-| Pattern matching | `icc_release_gate/regex_pattern_2_over_1k_lines` | Two regexes over 1K text lines | 71.574-72.020 us | 2026-05-21 | Tracks regex mode separately from literal matching. |
-| Mail parsing | `icc_release_gate/parse_eml_multipart_attachment` | Multipart EML with text, HTML, and one attachment | 3.1875-3.3575 us | 2026-05-21 | Backs FA-ICC-08 parser overhead claims. |
+| Hashing | `icc_release_gate/sha256_batch_100k_256b` | 100K byte strings, 256 bytes each | 13.374-15.802 ms | 2026-05-23 | Backs FA-ICC-01 batch-hash claims. Compare against Python `hashlib` loop before claiming a multiplier. |
+| Ranking | `icc_release_gate/hybrid_rank_1k` | 1K lexical ranks plus 1K cosine scores | 13.533-13.619 us | 2026-05-23 | Backs FA-ICC-03 hybrid-rank overhead claims. |
+| Ranking | `icc_release_gate/rrf_fuse_3x1k` | Three ranked lists, 1K IDs each | 121.78-124.41 us | 2026-05-23 | Backs FA-ICC-09 RRF helper claims. |
+| NDJSON | `icc_release_gate/ndjson_reader_append_1k` | 1K JSONL events appended in one chunk | 526.12-557.48 us | 2026-05-23 | Backs FA-ICC-06 streaming-reader claims. |
+| HTML to text | `icc_release_gate/html_to_text_250_fragments` | 250 repeated email/article-style HTML fragments with entities and links | 33.547-33.932 ms | 2026-05-23 | Backs FA-ICC-02 release proof for native HTML extraction. No multiplier claim yet. |
+| Encoding detection | `icc_release_gate/detect_encoding_windows1252_1k_lines` | 1K short artifact lines containing Windows-1252 smart-quote bytes | 7.1590-7.2486 us | 2026-05-23 | Backs FA-ICC-05 release proof for legacy Western text detection. |
+| Pattern matching | `icc_release_gate/literal_pattern_128_over_1k_lines` | 128 literals over 1K text lines | 1.1741-1.1913 ms | 2026-05-23 | Backs FA-ICC-07 pattern-count scaling claims. |
+| Pattern matching | `icc_release_gate/regex_pattern_2_over_1k_lines` | Two regexes over 1K text lines | 70.535-73.217 us | 2026-05-23 | Tracks regex mode separately from literal matching. |
+| Mail parsing | `icc_release_gate/parse_eml_multipart_attachment` | Multipart EML with text, HTML, and one attachment | 3.2063-3.2880 us | 2026-05-23 | Backs FA-ICC-08 parser overhead claims. |
 
 ## Transport Route Preview
 
@@ -71,7 +80,9 @@ Decision: keep the `py-codebase-memory` integration opt-in for both Python
 chunk extraction and token counting. Do not promote `fi-accel` as the default
 code-memory ingestion path until the tokenizer/chunker call path is specialized
 for repeated small/medium source chunks or benchmarked against a consumer where
-lower Python allocation matters more than wall time.
+lower Python allocation matters more than wall time. Superseded for local
+`PythonIndexer` exact token counting by the May 23 post-parity gate below;
+full `fi_accel.chunk_code` default adoption remains separate.
 
 ### Cached Tokenizer Follow-Up
 
@@ -131,7 +142,9 @@ Decision: promote this as a prototype recipe only. The full helper path is about
 Python allocation, but it should not become the default `py-codebase-memory`
 path until chunk identity/cardinality parity is either fixed or accepted by the
 downstream index contract. The earlier per-chunk `fi_accel.count_tokens` path
-remains blocked for default adoption.
+was still blocked for default adoption at this point; the May 23 post-parity
+token gate below supersedes that token-counting blocker for local
+`PythonIndexer`.
 
 ### Chunk Schema Parity Fixture
 
@@ -204,3 +217,68 @@ now defaultable for this fixture when downstream switches from per-chunk
 chunker-provided exact counts also clears the local wall-time/allocation and
 chunk-parity gates on this fixture, but the downstream default flip should still
 land as an explicit `py-codebase-memory` integration change.
+
+### Scalar Token Gate Rerun (Historical)
+
+A local scalar-only rerun on 2026-05-23 also showed that cached scalar
+`fi_accel.count_tokens` could clear the 25% wall-time gate after chunk parity
+closed, but its API conclusion is superseded by the merged batched exact-token
+follow-up above.
+
+Command shape:
+
+```bash
+uv run --project /Users/cblevins/workspace/libs/py-codebase-memory \
+  --with-editable /Users/cblevins/workspace/libs/fi-accel/python \
+  python scripts/bench_code_memory_token_gate.py --repeats 7
+```
+
+| Surface | Mode | Latest result | Date | Notes |
+| --- | --- | --- | --- | --- |
+| Python code-memory ingestion | local tree-sitter + heuristic token estimate | 85.53 ms median, 83.38-96.05 ms range, 1489.4 KiB median peak Python allocation, 141 chunks | 2026-05-23 | Scalar-only rerun baseline. |
+| Python code-memory ingestion | local tree-sitter + cached `fi_accel.count_tokens` | 93.65 ms median, 93.08-140.52 ms range, 1488.8 KiB median peak Python allocation, 141 chunks | 2026-05-23 | Cleared the wall-time gate, but did not reduce Python allocation the way the batched path later did. |
+| Python code-memory ingestion | `fi_accel.chunk_code` + cached token counts | 29.09 ms median, 28.76-29.82 ms range, 617.4 KiB median peak Python allocation, 141 chunks | 2026-05-23 | Historical comparison point before the merged batched-count benchmark. |
+
+Decision: keep this as historical evidence only. The current API guidance is to
+use `count_tokens_batch` for downstream local-chunk exact token counting.
+
+## WASM Tokenizer And Code-Chunking Kill-Test
+
+Run from a temporary copy of this repo on 2026-05-23:
+
+```bash
+wasm-pack build crates/fi-accel-wasm --target web --release --out-dir <out>
+wasm-pack build crates/fi-accel-wasm --target bundler --release --out-dir <out>
+wasm-pack build crates/fi-accel-wasm --target web --release --out-dir <out> --features tokenizer
+wasm-pack build crates/fi-accel-wasm --target bundler --release --out-dir <out> --features tokenizer
+wasm-pack build crates/fi-accel-wasm --target web --release --out-dir <out> --features chunker-code
+```
+
+Prototype shape: temporary WASM crate features forwarded `tokenizer` to
+`fi-accel-core/tokenizer` and `chunker-code` to `fi-accel-core/chunker`. The
+tokenizer prototype exported `count_tokens`, `truncate_to_tokens`, and
+`split_by_tokens`; the code-chunking prototype exported `chunk_code`.
+
+Host/runtime: Apple M4 local development machine, `rustc 1.92.0`, `cargo
+1.92.0`, `wasm-pack 0.13.1`, Node `v26.0.0`. Size rows use the `web` and
+`bundler` release outputs after wasm-pack's wasm-opt pass. Init rows use the
+`web` target, dynamic ESM import with a cache-busting URL, and
+`initSync({ module: bytes })` over 31 repeats.
+
+| Surface | Variant | Bundle/build result | Init result | Date | Notes |
+| --- | --- | --- | --- | --- | --- |
+| WASM current boundary | baseline, tokenizer/code chunking unsupported | `fi_accel_wasm_bg.wasm` 2080517 bytes raw, 771710 bytes gzip; web JS 42906 bytes; bundler JS total 39015 bytes | 0.405 ms median `initSync`; 0.752 ms median import plus init | 2026-05-23 | Existing package with markdown/text chunking, transport, eventlog, TOML/TOON, JSON, diff, log, and embedding helpers. |
+| WASM tokenizer prototype | add `tiktoken-rs` tokenizer exports | `fi_accel_wasm_bg.wasm` 9366845 bytes raw, 4097317 bytes gzip; web JS 45348 bytes; bundler JS total 41508 bytes | 1.944 ms median `initSync`; 2.698 ms median import plus init | 2026-05-23 | Adds 7286328 raw bytes and 3325607 gzip bytes versus baseline. Smoke check: `count_tokens("hello world", "gpt-4") == 2`. |
+| WASM code-chunking prototype | add Rust tree-sitter chunker exports | build failed for `wasm32-unknown-unknown` | not measured | 2026-05-23 | Current tree-sitter crates invoke C compilation for the browser target and fail on missing libc headers such as `stdlib.h` and `stdio.h`. |
+| WASM tokenizer plus code-chunking prototype | add both prototype features | build failed for `wasm32-unknown-unknown` | not measured | 2026-05-23 | Fails for the same tree-sitter C build reason before package-size/init measurements are available. |
+
+Decision: keep the current WASM unsupported boundary for tokenizer and code
+chunking. Tokenizer support is technically viable but deferred because it turns
+the `.wasm` from about 2.0 MB to 8.9 MB raw and from about 0.74 MiB to 3.91 MiB
+gzip without a named browser consumer that needs exact tokenization at startup.
+If a consumer appears, implement it as an explicit opt-in package or feature,
+not in the default `@flexinfer/fi-accel` WASM bundle. Rust-core tree-sitter
+code chunking is permanently unsupported in `fi-accel-wasm` for the current
+Rust chunker path; any future browser code parser should be a separate
+parser-WASM design, not a direct promotion of the current Rust tree-sitter
+chunker path.
