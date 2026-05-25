@@ -45,10 +45,29 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
   - Added an ICC-shaped audit-chain fixture to the Python release-gate tests.
   - Native and fallback `verify_hash_chain` now agree on valid, tampered-payload, and broken-link diagnostics for that fixture.
   - The fallback result shape now includes `expected_prev_hash` and `actual_prev_hash` on entry-hash mismatches, matching the native diagnostic payload.
+- 2026-05-23 FA-PLAN-09 benchmark ledger claim discipline:
+  - README and Python package prose no longer publish legacy unbacked multiplier claims.
+  - README now links to `docs/benchmark-ledger.md` and summarizes only dated ledger-backed results with commands, input shapes, host context, and measurements.
+  - Benchmark ledger documents the README claim policy so future release notes and docs have one source of truth.
+- 2026-05-23 FA-PLAN-04 ICC release-proof cleanup:
+  - Added Criterion release-gate benchmarks for the first ICC utility gaps left after the ledger cleanup: FA-ICC-02 HTML-to-text extraction and FA-ICC-05 encoding detection.
+  - Results on the Apple M4 host: `icc_release_gate/html_to_text_250_fragments` at 33.547-33.932 ms and `icc_release_gate/detect_encoding_windows1252_1k_lines` at 7.1590-7.2486 us.
+  - Remaining FA-PLAN-04 boundary: Gemma exactness still depends on a local tokenizer asset and fallback parity breadth remains a release checklist item rather than a performance claim.
+- 2026-05-23 FA-PLAN-08 WASM tokenizer/code-chunking kill-test:
+  - Measured the current WASM package against temporary tokenizer and tree-sitter code-chunking prototypes.
+  - Current unsupported boundary: 2080517 raw `.wasm` bytes, 771710 gzip bytes, and 0.405 ms median Node `initSync`.
+  - Tokenizer prototype: 9366845 raw `.wasm` bytes, 4097317 gzip bytes, and 1.944 ms median Node `initSync`; functional, but about 3.33 MB more gzip download.
+  - Code-chunking prototype: build fails for `wasm32-unknown-unknown` because the current tree-sitter C build path cannot find libc headers.
+  - Decision: defer WASM tokenizer to an explicit opt-in package/feature with a named consumer; treat Rust-core tree-sitter code chunking as permanently unsupported in `fi-accel-wasm` for the current Rust chunker path.
 - 2026-05-24 May 23 merge reconciliation:
   - Reconciled the merged FA-PLAN-06B batch-token API (`62c6ca9`, including `8a4a705`) against stale local notes that proposed trimming it after a scalar-only cached rerun.
   - Decision: keep `count_tokens_batch` and `Tokenizer.count_batch`; the merged benchmark shows local `PythonIndexer` plus batched exact counts at 95.54 ms median versus 88.96 ms heuristic over the same 141 chunks, with lower peak Python allocation.
   - Reconfirmed the FA-PLAN-04 hash-chain fixture merge (`020b1c8`, including `fbbaa22`) as landed; no follow-up trim is needed for the verifier fixture or fallback diagnostic parity.
+  - Preserved the scalar-only rerun as historical evidence but superseded its public-API conclusion with the merged batch-token benchmark and API.
+- 2026-05-25 downstream proof:
+  - `py-codebase-memory` now consumes `fi_accel.count_tokens_batch` inside local `PythonIndexer` exact-token mode instead of calling scalar `count_tokens` per chunk.
+  - Rerunning `scripts/bench_code_memory_token_counts.py` against the sibling checkout reports 144 local chunks, 22504 exact tokens, and 93.99 ms median for downstream batched exact counts versus 107.91 ms heuristic baseline; chunk parity still passes at 144 local chunks and 144 `fi_accel` chunks.
+  - The planned downstream token-counting follow-up is done for local `PythonIndexer`; full `fi_accel.chunk_code` default adoption remains a separate downstream contract decision.
 
 ## Plan
 
@@ -71,18 +90,18 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
      - keep markdown/text chunking through the existing FFI-backed chunker APIs, and promote only the small pure-Go Markdown text/code-fence helper surface for `!cgo` workflows
      - make degraded `!cgo` behavior explicit in docs and capability reporting
    - WASM:
-     - add tokenizer/count/truncate/split helpers
+     - defer tokenizer/count/truncate/split helpers unless a named browser consumer can justify an opt-in package or feature
      - add `top_k_similar`, `compute_centroid`, and batch prep helpers where practical
-     - keep code chunking optional unless parser bundle size is acceptable
-   - Next action: decide FA-PLAN-08 before adding more WASM parity surface.
+     - keep Rust-core tree-sitter code chunking permanently unsupported in the WASM binding for the current Rust chunker path
+   - FA-PLAN-08 decision: default WASM parity remains focused on UI-friendly lightweight helpers; tokenizer and parser-heavy code chunking are not promoted now.
 
-4. Expand chunk metadata for indexing workflows. Status: implemented in the library; exact token default is unblocked by the merged batched-count path, while downstream full-chunker adoption remains separate.
+4. Expand chunk metadata for indexing workflows. Status: implemented in the library; exact local `PythonIndexer` token counting is now consumed downstream through the merged batched-count path, while downstream full-chunker adoption remains separate.
    - Define a richer chunk schema in Rust first.
    - Add fields that downstream indexers actually need, such as import summaries and stronger symbol/container metadata.
    - Preserve the current chunk schema fields so existing Python callers do not break.
    - Validated against `py-codebase-memory`; the original proof preserved opt-in modes because the accelerated paths missed the downstream wall-time gate.
    - The May 23 FA-PLAN-06B merge closes the repeated-small-chunk token blocker with `count_tokens_batch` while preserving local `PythonIndexer` chunking.
-   - Next action: land an explicit downstream `py-codebase-memory` integration that consumes `count_tokens_batch`; decide full `fi_accel.chunk_code` adoption separately from the token-counting gate.
+   - The May 25 downstream proof lands the explicit `py-codebase-memory` local chunk integration and reruns the benchmark shape; decide full `fi_accel.chunk_code` adoption separately from the token-counting gate.
 
 5. Improve Python vector/data interop. Status: still open.
    - Prototype NumPy-oriented APIs using the Rust `numpy` crate.
@@ -93,7 +112,7 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
    - Treat Arrow as a feature-gated experiment for high-throughput batch exchange, not a default dependency.
    - Validate whether it meaningfully helps real workspace flows before promoting it.
 
-7. Back all promoted surfaces with benchmarks and examples. Status: now the primary release-hardening track.
+7. Back all promoted surfaces with benchmarks and examples. Status: in progress; README claim discipline complete.
    - Add benchmark coverage for tokenizer, transport, TOML/TOON, and any new interop paths.
    - Publish minimal examples for Rust, Python, Go, and JS/WASM.
    - Add downstream smoke tests where feasible.
@@ -101,14 +120,14 @@ Plan the next delivery slices that would make `fi-accel` materially more useful 
 
 ## Active Backlog
 
-- Done: FA-PLAN-04 hash-chain service fixture proof; broader ICC release hardening continues through Gemma exactness and claim-backed benchmark work.
+- Done/continuing: FA-PLAN-04 hash-chain service fixture proof plus first ICC benchmark cleanup; broader ICC release hardening continues through Gemma exactness and claim-backed benchmark work.
 - P1: FA-PLAN-05 Gemma Fixture Harness.
 - Done/Gated: FA-PLAN-06 Code-Memory Ingestion Proof; original default promotion remained blocked until the follow-up token gate.
 - Done: FA-PLAN-06B Repeated Token Counting Fast Path; keep the merged batch API based on the May 23 benchmark evidence.
 - P2: FA-PLAN-06A Specialized Route Extractor Kill-Test.
 - Done: FA-PLAN-07 Go Parity Decision.
-- P2: FA-PLAN-08 WASM Tokenizer And Code-Chunking Kill-Test.
-- P2: FA-PLAN-09 Benchmark Ledger.
+- Done: FA-PLAN-08 WASM Tokenizer And Code-Chunking Kill-Test; tokenizer deferred, Rust tree-sitter code chunking permanently unsupported for the current WASM binding path.
+- Done: FA-PLAN-09 Benchmark Ledger.
 - P3: FA-PLAN-10 Patch Repair Revisit.
 
 See `.loom/45-planning-audit-and-backlog-2026-05-20.md` for acceptance criteria and evidence.
@@ -122,6 +141,13 @@ downstream integration switches away from per-chunk scalar `count_tokens` calls:
 counts over 141 chunks. The full `fi_accel.chunk_code(model="gpt-4")` path is
 also faster at 26.70 ms median with passing chunk parity, but should still be
 promoted by an explicit downstream adoption change.
+
+2026-05-25 update: the downstream `py-codebase-memory` local `PythonIndexer`
+exact-token path now assigns counts with `fi_accel.count_tokens_batch`. The
+current rerun reports 107.91 ms median for heuristic counts, 93.99 ms median
+for downstream batched exact counts, 26.96 ms median for
+`fi_accel.chunk_code(model="gpt-4")`, 144 chunks, and 22504 exact tokens.
+Chunk parity remains passing with 144 local chunks and 144 `fi_accel` chunks.
 
 ## Test Plan
 
@@ -153,8 +179,8 @@ promoted by an explicit downstream adoption change.
 
 - The repo has a documented capability matrix and updated README surface description.
 - The Rust core exposes transport helpers that match the MCP transport spec well enough for reuse by adjacent repos.
-- Go and WASM no longer look materially incomplete next to Python for the promoted module families.
-- Chunk metadata is sufficient to support at least one indexing/intelligence consumer as an opt-in path, with default adoption blocked unless wall-time and schema gates pass.
+- Go and WASM have explicit product boundaries for unsupported parity gaps instead of unmeasured drift.
+- Chunk metadata is sufficient to support at least one indexing/intelligence consumer as an opt-in path; exact token counting has cleared the wall-time gate and is now consumed by local `PythonIndexer`, while full chunker default adoption still needs a downstream contract decision.
 - Python has a benchmark-backed plan or implementation for array-oriented vector interop.
 - Benchmarks cover every module family that is being actively promoted.
 

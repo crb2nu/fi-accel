@@ -2,7 +2,7 @@
 
 # fi-accel
 
-High-performance Rust acceleration library for agent/MCP workflows.
+Rust acceleration library for agent/MCP workflows.
 
 Performance claims should be treated as release-backed only when they are
 recorded in the [benchmark ledger](docs/benchmark-ledger.md) with command,
@@ -10,12 +10,12 @@ host, input shape, and date.
 
 ## Features
 
-- **Token Counting**: 10-50x faster than Python tiktoken
-- **Embedding Operations**: SIMD-accelerated similarity calculations (50-100x faster)
+- **Token Counting**: exact token counting and splitting helpers with cached tokenizer state
+- **Embedding Operations**: SIMD-oriented similarity, top-k, centroid, and batch preparation helpers
 - **Ranking Helpers**: Hybrid lexical/cosine ranking and reciprocal rank fusion
 - **Fuzzy Diff Matching**: Intelligent patch application for drifted files
-- **Log Streaming**: Efficient incremental log reading
-- **JSON Parsing**: SIMD-accelerated NDJSON parsing plus JSON-RPC helpers
+- **Log Streaming**: Incremental log reading
+- **JSON Parsing**: NDJSON parsing plus JSON-RPC helpers
 - **Text Ingestion**: HTML-to-text extraction, encoding detection, and strict streaming NDJSON reads
 - **Event Log Helpers**: Normalize and summarize JSONL timeline/audit streams
 - **Acceleration Scout**: Summarize service hot-path observations for adoption planning
@@ -65,6 +65,13 @@ The Go binding lives in [`go/fiaccel`](/Users/cblevins/workspace/libs/fi-accel/g
 | chunker (code) | full | full | full | unsupported |
 | chunker (markdown/text) | full | full | full | full |
 | runtime `capabilities()` | full | full | full | full |
+
+WASM tokenizer support remains out of the default package after the May 23,
+2026 bundle kill-test: the prototype works, but adds about 3.33 MB gzip to the
+`.wasm` payload. WASM code chunking through the current Rust tree-sitter path is
+permanently unsupported in this binding because the browser-target build fails
+on tree-sitter C/libc headers. See the
+[benchmark ledger](docs/benchmark-ledger.md#wasm-tokenizer-and-code-chunking-kill-test).
 
 ## Usage
 
@@ -291,21 +298,23 @@ func main() {
 }
 ```
 
-## Performance
+## Performance Evidence
 
-| Operation | Python | fi-accel | Speedup |
-|-----------|--------|----------|---------|
-| Token count (10KB) | 5ms | 0.1ms | 50x |
-| Similarity matrix (1K x 1K) | 2s | 20ms | 100x |
-| Fuzzy patch (10K lines) | 500ms | 5ms | 100x |
-| NDJSON parse (1MB) | 50ms | 5ms | 10x |
-| JSON-RPC framing (100 msgs) | 20ms | 2ms | 10x |
-| JSON-RPC route preview (small tools/call) | gateway route baseline: 2.22-2.44us | Go helper: 1.24-1.33us | ~1.8x |
-| JSON-RPC route preview (gateway-shaped tools/call) | pending service rerun | Go helper: 5.12-5.44us | fixture baseline |
-| JSON-RPC prefix route extraction (gateway-shaped tools/call) | gateway route gate: 2.22-2.44us, 1608 B/op | Go helper: 235-239ns, 64 B/op | clears gate |
-| SSE parse (100 events) | 10ms | 1ms | 10x |
-| TOML parse (100KB) | 10ms | 1ms | 10x |
-| TOON parse (10KB) | 5ms | 0.5ms | 10x |
+Performance numbers are tracked in the [benchmark ledger](docs/benchmark-ledger.md)
+so each promoted claim has a command, host, input shape, and date. Current
+ledger-backed highlights:
+
+| Surface | Evidence | Result |
+|-----------|----------|--------|
+| ICC hashing | `icc_release_gate/sha256_batch_100k_256b` | 13.374-15.802 ms for 100K 256-byte inputs |
+| ICC ranking | `icc_release_gate/hybrid_rank_1k` | 13.533-13.619 us for 1K lexical ranks plus 1K cosine scores |
+| ICC NDJSON | `icc_release_gate/ndjson_reader_append_1k` | 526.12-557.48 us for 1K JSONL events |
+| ICC mail parsing | `icc_release_gate/parse_eml_multipart_attachment` | 3.2063-3.2880 us for a multipart EML fixture |
+| Go transport | `BenchmarkExtractJSONRPCPrefixRouteGatewayToolsCall` | 234.9-238.6 ns/op, 64 B/op, 2 allocs/op |
+| Code-memory token gate | local `PythonIndexer` plus downstream batched `fi_accel.count_tokens_batch` | 93.99 ms median versus 107.91 ms heuristic baseline |
+
+Surfaces without ledger entries should be treated as available APIs, not as
+release-backed speed claims.
 
 ## Building from Source
 

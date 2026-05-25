@@ -4,7 +4,7 @@
 
 - Milestone: M5 close the loop with benchmarks, docs, and one downstream adopter.
 - Slice: FA-PLAN-06 Code-Memory Ingestion Proof reconciliation.
-- Status: prototype adopted as evidence, default downstream adoption blocked.
+- Status: prototype adopted as evidence; exact token default unblocked by the May 23 rerun, full helper default still separate.
 
 ## What Landed
 
@@ -45,19 +45,20 @@ per-chunk `fi_accel.count_tokens`: `detect_encoding`, `chunk_code`,
 `sha256_batch`, and `hybrid_rank` compose cleanly and reduce both wall time and
 Python allocation on the current downstream source tree.
 
-The blocker is precise: chunk cardinality and ranked IDs differ from the local
-indexer, and the earlier downstream opt-in path that uses per-chunk
-`fi_accel.count_tokens` remains too slow for default adoption. Default adoption
-needs either chunk identity/cardinality parity or an explicit downstream index
-contract that accepts the new chunk shape, plus a batched/specialized token
-counting path.
+The original blocker was precise: chunk cardinality and ranked IDs differed
+from the local indexer, and the earlier downstream opt-in path that used
+per-chunk `fi_accel.count_tokens` was too slow for default adoption. The May 23
+rerun changes the token-counting conclusion: after the chunk parity merge,
+parity passes on the 16-file fixture and local `PythonIndexer` plus cached
+`fi_accel.count_tokens` measures 93.65 ms median versus 85.53 ms heuristic
+baseline, about 9.5% overhead. Promote exact token counting for the local
+PythonIndexer path; treat full `fi_accel.chunk_code` adoption as a separate
+contract decision.
 
 ## Next Actions
 
-1. Add a parity fixture that compares local and `fi_accel.chunk_code` chunk
-   identity, line spans, names, and call/definition metadata on the 16-file
-   `py-codebase-memory` source set.
-2. Prototype batched token counting or reuse chunker-provided token counts
-   without per-chunk Python calls.
-3. Revisit default `py-codebase-memory` adoption only after the parity and token
-   counting blockers are closed.
+1. Land the downstream default flip for exact token counting when
+   `fi_accel.count_tokens` is available, preserving local `PythonIndexer`
+   chunking.
+2. Decide full `fi_accel.chunk_code` default adoption from the broader
+   downstream chunk contract, not from the now-closed token gate.
